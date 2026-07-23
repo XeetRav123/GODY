@@ -1,23 +1,17 @@
 plugins {
-    id 'com.android.application'
+    id 'com.android.application' version '8.3.2' apply true
 }
 
 android {
-    compileSdk 33
+    compileSdk 34
     namespace 'com.gody.app'
 
     defaultConfig {
         applicationId "com.gody.app"
         minSdk 21
-        targetSdk 33
+        targetSdk 34
         versionCode 1
         versionName "0.1"
-    }
-
-    buildTypes {
-        debug {
-            debuggable true
-        }
     }
 
     compileOptions {
