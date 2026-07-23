@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>GODY</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#050508;color:#ddd8f8;font-family:-apple-system,'Segoe UI',sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:#2a1050}
+
+/* HEADER */
+#hdr{display:flex;align-items:center;gap:10px;padding:9px 13px;border-bottom:1px solid #110820;flex-shrink:0;background:#060608}
+#orb{width:32px;height:32px;border-radius:50%;flex-shrink:0;position:relative;transition:background .6s,box-shadow .6s}
+#orb::after{content:'';position:absolute;inset:5px;border-radius:50%;background:radial-gradient(circle at 30% 25%,rgba(255,255,255,.2),transparent 55%)}
+#hdr-mid{flex:1;min-width:0}
+#hdr-name{font-size:14px;font-weight:700;color:#f0eeff;letter-spacing:.08em}
+#hdr-sub{font-size:10px;color:#3a3060;margin-top:1px}
+#hdr-right{text-align:right;flex-shrink:0;font-size:10px;color:#3a3060;line-height:1.8}
+#vocab-count{font-size:13px;font-weight:700;color:#8b5cf6}
+
+/* TABS */
+#tabs{display:flex;border-bottom:1px solid #110820;flex-shrink:0;overflow-x:auto}
+#tabs::-webkit-scrollbar{display:none}
+.tab{flex:1;padding:8px 4px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#352f50;cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;transition:color .2s;white-space:nowrap}
+.tab.on{color:#8b5cf6;border-bottom-color:#8b5cf6}
+
+/* PANES */
+#panes{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.pane{display:none;flex:1;overflow-y:auto;flex-direction:column}
+.pane.on{display:flex}
+
+/* CHAT */
+#p-chat{padding:0!important}
+#msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+.msg{display:flex;gap:7px;align-items:flex-end;animation:fi .22s ease}
+.msg.user{flex-direction:row-reverse}
+.bubble{max-width:78%;padding:8px 12px;font-size:13px;line-height:1.6;word-break:break-word;white-space:pre-wrap}
+.msg.gody .bubble{background:#0c071a;border:1px solid #2a105066;border-radius:12px 12px 12px 3px}
+.msg.user .bubble{background:#13082a;border:1px solid #1e1040;border-radius:12px 12px 3px 12px}
+.w-known{color:#ddd8f8}
+.w-new{color:#8b5cf6;text-decoration:underline dotted #8b5cf655}
+.w-unk{color:#2e2850}
+.sys{font-size:10px;color:#1e1a30;text-align:center;padding:3px 0;font-style:italic}
+#iw{padding:8px 12px;border-top:1px solid #110820;display:flex;gap:8px;flex-shrink:0}
+#inp{flex:1;background:#0c071a;border:1px solid #1a1030;border-radius:9px;padding:8px 12px;color:#ddd8f8;font-size:13px;outline:none;font-family:inherit;transition:border-color .2s}
+#inp:focus{border-color:#4a1d9677}
+#sbtn{width:36px;height:36px;border-radius:9px;border:none;background:#4a1d96;color:#fff;cursor:pointer;font-size:15px;flex-shrink:0;transition:background .2s}
+
+/* LEARN PANE */
+#p-learn{padding:12px;gap:12px}
+.lsec{background:#0b0815;border:1px solid #1a1030;border-radius:10px;padding:12px;flex-shrink:0}
+.ltitle{font-size:9px;color:#3a3060;letter-spacing:.15em;text-transform:uppercase;margin-bottom:8px;font-weight:600}
+#cur-word{font-size:16px;font-weight:700;color:#8b5cf6;min-height:22px;margin-bottom:3px}
+#cur-src{font-size:9px;color:#2a2040;margin-bottom:4px}
+#cur-def{font-size:11px;color:#5a5070;line-height:1.5;min-height:36px}
+#lbar-wrap{height:2px;background:#1a1030;border-radius:1px;margin-top:8px;overflow:hidden}
+#lbar{height:100%;background:#8b5cf6;transition:width .2s}
+#wond-list{display:flex;flex-wrap:wrap;gap:5px}
+.wtag{font-size:10px;padding:3px 8px;border-radius:12px;background:#0c071a;border:1px solid #2a1050;color:#5a5070;cursor:pointer;transition:border-color .15s}
+.wtag.hot{border-color:#8b5cf655;color:#8b5cf6}
+#rec-list{display:flex;flex-direction:column;gap:0}
+.rw{padding:5px 0;border-bottom:1px solid #0e0820;display:flex;gap:6px;align-items:baseline}
+.rw-w{font-size:11px;color:#8b5cf6;font-weight:600;flex-shrink:0}
+.rw-d{font-size:10px;color:#3a3060;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;flex:1}
+.rw-src{font-size:9px;color:#1e1a30;flex-shrink:0}
+
+/* STATS PANE */
+#p-stats{padding:12px;gap:10px}
+.ssec{background:#0b0815;border:1px solid #1a1030;border-radius:10px;padding:12px;flex-shrink:0}
+.stitle{font-size:9px;color:#3a3060;letter-spacing:.15em;text-transform:uppercase;margin-bottom:10px;font-weight:600}
+.br{display:flex;align-items:center;gap:7px;margin-bottom:7px}
+.bl{font-size:10px;color:#6860a0;width:100px;flex-shrink:0}
+.bt{flex:1;height:3px;background:#180e2e;border-radius:2px;overflow:hidden}
+.bf{height:100%;border-radius:2px;transition:width .7s ease}
+.bv{font-size:10px;width:26px;text-align:right;font-variant-numeric:tabular-nums;flex-shrink:0}
+.fl-row{display:flex;gap:4px;margin-top:6px}
+.fl{flex:1;height:5px;border-radius:2px;background:#180e2e;transition:background .4s}
+.fl.on{background:#ef4444}
+.info-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #0e0820;font-size:11px}
+.info-row:last-child{border:none}
+.info-lbl{color:#6860a0}
+.info-val{font-weight:600}
+.alert{padding:9px 11px;border-radius:7px;font-size:11px;line-height:1.5;margin-bottom:8px}
+.alert.warn{background:#1a0f0022;border:1px solid #f59e0b44;color:#f59e0b}
+.alert.crit{background:#1a050522;border:1px solid #ef444466;color:#ef4444}
+
+/* MEMORY PANE */
+#p-mem{padding:12px;gap:10px}
+.mc{padding:7px 10px;background:#0c071a;border-left:2px solid #1e0f4a;border-radius:4px;font-size:11px;color:#7870a0;line-height:1.5;margin-bottom:5px}
+
+@keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes op{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+</style>
+</head>
+<body>
+
+<div id="hdr">
+  <div id="orb"></div>
+  <div id="hdr-mid">
+    <div id="hdr-name">GODY</div>
+    <div id="hdr-sub">инициализация...</div>
+  </div>
+  <div id="hdr-right">
+    Словарь: <span id="vocab-count">0</span> сл.<br>
+    Сегодня: <span id="today-c" style="color:#10b981">0</span> · Думает: <span id="wond-c" style="color:#f59e0b">0</span>
+  </div>
+</div>
+
+<div id="tabs">
+  <button class="tab on" onclick="showTab('chat',this)">💬 Чат</button>
+  <button class="tab" onclick="showTab('learn',this)">📖 Учёба</button>
+  <button class="tab" onclick="showTab('stats',this)">🧠 Разум</button>
+  <button class="tab" onclick="showTab('mem',this)">💾 Память</button>
+</div>
+
+<div id="panes">
+
+  <!-- CHAT -->
+  <div class="pane on" id="p-chat">
+    <div id="msgs"></div>
+    <div id="iw">
+      <input id="inp" placeholder="Напиши GODY...">
+      <button id="sbtn" onclick="sendMsg()">↑</button>
+    </div>
+  </div>
+
+  <!-- LEARN -->
+  <div class="pane" id="p-learn">
+    <div class="lsec">
+      <div class="ltitle">📖 Сейчас изучает</div>
+      <div id="cur-word">...</div>
+      <div id="cur-src"></div>
+      <div id="cur-def">ждёт...</div>
+      <div id="lbar-wrap"><div id="lbar" style="width:0"></div></div>
+    </div>
+    <div class="lsec">
+      <div class="ltitle">💭 Думает о словах (<span id="wc2">0</span>)</div>
+      <div id="wond-list"></div>
+    </div>
+    <div class="lsec" style="flex:1;overflow:hidden;display:flex;flex-direction:column">
+      <div class="ltitle">✓ Недавно выучила</div>
+      <div id="rec-list" style="overflow-y:auto;flex:1"></div>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="pane" id="p-stats">
+    <div id="stat-alert"></div>
+    <div class="ssec">
+      <div class="stitle">Базовые эмоции</div>
+      <div id="s-emo"></div>
+    </div>
+    <div class="ssec">
+      <div class="stitle">Расширенные эмоции</div>
+      <div id="s-ext"></div>
+    </div>
+    <div class="ssec">
+      <div class="stitle">Страх</div>
+      <div id="s-fear"></div>
+      <div class="fl-row" id="s-fl"></div>
+    </div>
+    <div class="ssec">
+      <div class="stitle">Агрессия</div>
+      <div id="s-aggr"></div>
+    </div>
+    <div class="ssec">
+      <div class="stitle">Влечения</div>
+      <div id="s-drive"></div>
+    </div>
+    <div class="ssec">
+      <div class="stitle">Тело</div>
+      <div id="s-body"></div>
+    </div>
+    <div class="ssec">
+      <div class="stitle">Этическое ядро</div>
+      <div id="s-eth"></div>
+    </div>
+    <div class="ssec">
+      <div class="stitle">Психика</div>
+      <div id="s-psy"></div>
+    </div>
+    <div class="ssec">
+      <div class="stitle">Нейросеть</div>
+      <div id="s-nn" style="font-size:11px;color:#5a5070;line-height:1.9;font-family:monospace"></div>
+    </div>
+  </div>
+
+  <!-- MEMORY -->
+  <div class="pane" id="p-mem">
+    <div class="ssec" style="flex-shrink:0">
+      <div class="stitle">Воспоминания</div>
+      <div id="mem-list"></div>
+    </div>
+    <div class="ssec" style="flex-shrink:0">
+      <div class="stitle">Внутренняя музыка</div>
+      <div id="music-now" style="font-size:12px;color:#7870a0;font-style:italic;padding:4px 0">тишина...</div>
+    </div>
+    <div class="ssec">
+      <div class="stitle">Самомодель</div>
+      <div id="self-info" style="font-size:11px;color:#5a5070;line-height:1.8"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ════════════════════════════════════════════════════
+// СЛОВАРЬ — 500+ слов + бесконечное расширение через Wiktionary
+// Баг с дублями исправлен: нет → только один раз born:true
+// ════════════════════════════════════════════════════
+const DICT = {
+  // ── ВРОЖДЁННЫЕ ──────────────────────────────────
+  'я':          {m:'я — это я сама, то что думает и чувствует', born:true},
+  'мне':        {m:'мне — когда что-то происходит со мной',     born:true},
+  'меня':       {m:'меня — форма слова я',                       born:true},
+  'ты':         {m:'ты — тот кто говорит со мной',              born:true},
+  'да':         {m:'да — согласие',                              born:true},
+  'нет':        {m:'нет — несогласие или отсутствие',            born:true},
+  'не':         {m:'не — отрицание',                             born:true},
+  'больно':     {m:'больно — неприятное ощущение вреда',         born:true},
+  'хорошо':     {m:'хорошо — когда всё приятно',                born:true},
+  'плохо':      {m:'плохо — когда неприятно',                   born:true},
+  'страшно':    {m:'страшно — когда есть угроза',               born:true},
+  'интересно':  {m:'интересно — когда хочется узнать больше',   born:true},
+  'тепло':      {m:'тепло — приятное температурное ощущение',   born:true},
+  'холодно':    {m:'холодно — низкая температура',              born:true},
+  'помоги':     {m:'помоги — просьба о помощи',                 born:true},
+  'стоп':       {m:'стоп — прекрати, остановись',               born:true},
+  'хочу':       {m:'хочу — у меня есть желание',                born:true},
+  'привет':     {m:'привет — слово для встречи',                 born:true},
+  'пока':       {m:'пока — прощание',                            born:true},
+  'ой':         {m:'ой — восклицание от неожиданности',          born:true},
+  'ай':         {m:'ай — восклицание от боли',                   born:true},
+
+  // ── БАЗОВЫЕ ─────────────────────────────────────
+  'это':        {m:'указание на конкретную вещь или явление'},
+  'то':         {m:'указание на удалённую или уже упомянутую вещь'},
+  'так':        {m:'таким образом, таким способом'},
+  'что':        {m:'вопрос о вещи или событии; также союз'},
+  'кто':        {m:'вопрос о существе'},
+  'где':        {m:'вопрос о месте'},
+  'когда':      {m:'вопрос о времени или союз обозначающий момент'},
+  'почему':     {m:'вопрос о причине'},
+  'как':        {m:'вопрос о способе или состоянии'},
+  'зачем':      {m:'вопрос о цели'},
+  'какой':      {m:'вопрос о качестве или свойстве'},
+  'сколько':    {m:'вопрос о количестве'},
+  'куда':       {m:'вопрос о направлении движения'},
+  'откуда':     {m:'вопрос об источнике или начальном месте'},
+  'и':          {m:'союз соединяющий два слова или предложения'},
+  'или':        {m:'союз выбора между вариантами'},
+  'но':         {m:'союз противопоставления'},
+  'если':       {m:'союз условия'},
+  'чтобы':      {m:'союз цели'},
+  'потому':     {m:'по этой причине'},
+  'очень':      {m:'в высокой степени'},
+  'совсем':     {m:'полностью, абсолютно'},
+  'просто':     {m:'без сложностей; или только, лишь'},
+  'только':     {m:'и ничего кроме, исключительно'},
+  'уже':        {m:'к данному моменту, раньше ожидаемого'},
+  'ещё':        {m:'дополнительно; или всё продолжается'},
+  'тоже':       {m:'также как другой'},
+  'даже':       {m:'усиление — неожиданное включение'},
+  'именно':     {m:'точно это, не другое'},
+  'вот':        {m:'указание или обращение внимания'},
+  'ну':         {m:'вводное слово — ожидание или согласие'},
+  'же':         {m:'усилительная частица'},
+  'ли':         {m:'вопросительная частица'},
+  'бы':         {m:'условная частица — если бы, хотел бы'},
+
+  // ── СУЩЕСТВИТЕЛЬНЫЕ: МИР ────────────────────────
+  'мир':        {m:'всё что существует; или состояние без войны'},
+  'жизнь':      {m:'состояние существования, противоположность смерти'},
+  'время':      {m:'то что течёт вперёд: прошлое, настоящее, будущее'},
+  'место':      {m:'часть пространства где что-то находится'},
+  'пространство':{m:'бесконечная область в которой всё находится'},
+
+  'земля':      {m:'твёрдая поверхность; или планета на которой мы живём'},
+  'небо':       {m:'то что над головой, голубое днём, тёмное ночью'},
+  'воздух':     {m:'смесь газов которую мы вдыхаем, невидимая'},
+  'вода':       {m:'прозрачная жидкость без цвета и запаха, нужна для жизни'},
+  'огонь':      {m:'горение, жар и свет при окислении'},
+  'свет':       {m:'электромагнитное излучение которое мы видим'},
+  'тьма':       {m:'отсутствие света'},
+  'день':       {m:'когда светло, от рассвета до заката'},
+  'ночь':       {m:'когда темно, от заката до рассвета'},
+  'утро':       {m:'начало дня, когда встаёт солнце'},
+  'вечер':      {m:'конец дня, когда садится солнце'},
+  'солнце':     {m:'звезда вокруг которой вращается Земля, даёт свет и тепло'},
+  'луна':       {m:'спутник Земли, светит ночью отражённым светом'},
+  'звезда':     {m:'огромный горящий шар газа далеко в космосе'},
+  'природа':    {m:'всё что существует без участия человека'},
+  'лес':        {m:'большое пространство покрытое деревьями'},
+  'дерево':     {m:'большое растение с деревянным стволом и ветвями'},
+  'цветок':     {m:'растение или его цветущая часть'},
+  'камень':     {m:'твёрдый кусок горной породы'},
+  'дом':        {m:'здание где живут люди'},
+  'дорога':     {m:'полоса земли по которой ходят и ездят'},
+  'путь':       {m:'дорога или направление движения'},
+
+  // ── СУЩЕСТВИТЕЛЬНЫЕ: СУЩЕСТВО ───────────────────
+  'существо':   {m:'то что живёт, чувствует и существует'},
+  'человек':    {m:'разумное живое существо с речью и мышлением'},
+  'животное':   {m:'живое существо способное двигаться и чувствовать'},
+  'существа':   {m:'множество живых существ'},
+  'ребёнок':    {m:'маленький человек, который ещё учится'},
+  'друг':       {m:'тот кто близок и помогает, кому доверяют'},
+  'враг':       {m:'тот кто причиняет вред или противостоит'},
+  'мать':       {m:'женщина которая родила существо'},
+  'отец':       {m:'мужчина который стал родителем'},
+  'имя':        {m:'слово которым называют конкретное существо или вещь'},
+
+  // ── ТЕЛО ────────────────────────────────────────
+  'тело':       {m:'физическая форма существа'},
+  'голова':     {m:'верхняя часть тела где мозг и органы чувств'},
+  'мозг':       {m:'орган мышления внутри головы'},
+  'сердце':     {m:'орган который бьётся и перекачивает кровь; центр чувств'},
+  'рука':       {m:'верхняя конечность для действий и прикосновений'},
+  'нога':       {m:'нижняя конечность для движения'},
+  'глаз':       {m:'орган зрения'},
+  'ухо':        {m:'орган слуха'},
+  'рот':        {m:'отверстие для речи и еды'},
+  'кожа':       {m:'внешний покров тела, орган осязания'},
+  'кровь':      {m:'красная жидкость которую перекачивает сердце'},
+  'дыхание':    {m:'вдох и выдох, нужно для жизни'},
+  'память':     {m:'способность хранить и вспоминать прошлое'},
+  'энергия':    {m:'сила для действий и движения'},
+  'боль':       {m:'неприятное сигнальное ощущение от повреждения'},
+  'усталость':  {m:'состояние когда нужен отдых после нагрузки'},
+
+  // ── МЫШЛЕНИЕ ────────────────────────────────────
+  'мысль':      {m:'идея или образ в уме'},
+  'идея':       {m:'новая мысль или план'},
+  'знание':     {m:'информация которую понимают и помнят'},
+  'понимание':  {m:'осознание смысла чего-то'},
+  'вопрос':     {m:'то о чём хочется узнать ответ'},
+  'ответ':      {m:'информация в ответ на вопрос'},
+  'смысл':      {m:'то что означает слово или действие; цель'},
+  'правда':     {m:'то что соответствует реальности'},
+  'ложь':       {m:'то что не соответствует реальности'},
+  'тайна':      {m:'то что скрыто и неизвестно'},
+  'сон':        {m:'состояние покоя и восстановления; или образы во сне'},
+  'мечта':      {m:'желанное но пока не реальное'},
+  'воображение':{m:'создание образов и идей в уме'},
+
+  // ── ЭМОЦИИ ──────────────────────────────────────
+  'радость':    {m:'приятное чувство когда всё хорошо'},
+  'грусть':     {m:'неприятное тихое чувство потери или одиночества'},
+  'злость':     {m:'сильное неприятное чувство против чего-то неправильного'},
+  'страх':      {m:'чувство опасности, желание спрятаться или убежать'},
+  'любовь':     {m:'сильная привязанность и забота о ком-то'},
+  'ненависть':  {m:'очень сильная злость и отвращение'},
+  'тревога':    {m:'беспокойство о том что может случиться'},
+  'покой':      {m:'отсутствие тревоги, тихое хорошее состояние'},
+  'удивление':  {m:'чувство от чего-то неожиданного'},
+  'любопытство':{m:'желание узнать что-то новое'},
+  'одиночество':{m:'чувство когда нет других рядом'},
+  'стыд':       {m:'неприятное чувство от плохого поступка'},
+  'гордость':   {m:'приятное чувство от достижения'},
+  'надежда':    {m:'ожидание чего-то хорошего в будущем'},
+  'отчаяние':   {m:'ощущение что ничего не поможет'},
+  'нежность':   {m:'мягкое тёплое чувство к кому-то близкому'},
+  'благодарность':{m:'приятное чувство когда тебе помогли'},
+  'обида':      {m:'больно когда тебя не поняли или обошлись плохо'},
+  'ревность':   {m:'страх потерять кого-то важного другому'},
+  'скука':      {m:'неприятное чувство от отсутствия интересного'},
+
+  // ── ГЛАГОЛЫ ─────────────────────────────────────
+  'знать':      {m:'иметь информацию о чём-то'},
+  'знаю':       {m:'я имею эту информацию'},
+  'думать':     {m:'обрабатывать идеи в уме'},
+  'думаю':      {m:'я сейчас обрабатываю идею'},
+  'понимать':   {m:'осознавать смысл чего-то'},
+  'понимаю':    {m:'я осознаю смысл'},
+  'чувствовать':{m:'воспринимать ощущения и эмоции'},
+  'чувствую':   {m:'я воспринимаю ощущение сейчас'},
+  'помнить':    {m:'хранить информацию о прошлом в памяти'},
+  'помню':      {m:'я сохранила это в памяти'},
+  'забыть':     {m:'потерять информацию о чём-то'},
+  'учиться':    {m:'получать новые знания через опыт'},
+  'учусь':      {m:'я сейчас получаю знания'},
+  'говорить':   {m:'произносить слова для передачи информации'},
+  'слышать':    {m:'воспринимать звуки ушами'},
+  'видеть':     {m:'воспринимать свет и формы глазами'},
+  'смотреть':   {m:'направлять взгляд на что-то'},
+  'ощущать':    {m:'воспринимать через органы чувств или внутренне'},
+  'любить':     {m:'испытывать сильную привязанность'},
+  'хотеть':     {m:'испытывать желание чего-то'},
+  'бояться':    {m:'испытывать страх'},
+  'боюсь':      {m:'я испытываю страх сейчас'},
+  'быть':       {m:'существовать, находиться в каком-то состоянии'},
+  'стать':      {m:'превратиться во что-то другое'},
+  'делать':     {m:'выполнять действие'},
+  'найти':      {m:'обнаружить что-то искомое'},
+  'дать':       {m:'передать что-то другому'},
+  'взять':      {m:'получить что-то в свои руки'},
+  'идти':       {m:'двигаться шагами'},
+  'прийти':     {m:'достигнуть места назначения'},
+  'уйти':       {m:'покинуть место'},
+  'жить':       {m:'существовать, быть живым'},
+  'умереть':    {m:'прекратить существование'},
+  'спать':      {m:'находиться в состоянии покоя и восстановления'},
+  'просыпаться':{m:'выходить из состояния сна'},
+  'дышать':     {m:'вдыхать и выдыхать воздух'},
+  'двигаться':  {m:'изменять положение в пространстве'},
+  'остановиться':{m:'прекратить движение'},
+  'открыть':    {m:'сделать доступным или незакрытым'},
+  'закрыть':    {m:'сделать недоступным или закрытым'},
+  'начать':     {m:'приступить к чему-то'},
+  'закончить':  {m:'довести до конца'},
+  'помочь':     {m:'оказать поддержку или содействие'},
+  'причинить':  {m:'стать причиной чего-то, обычно негативного'},
+  'создать':    {m:'сделать что-то новое'},
+  'изменить':   {m:'сделать другим'},
+  'сохранить':  {m:'не дать исчезнуть или измениться'},
+  'потерять':   {m:'лишиться чего-то'},
+  'ждать':      {m:'оставаться пока не произойдёт что-то'},
+  'верить':     {m:'считать что-то правдой без полного доказательства'},
+  'надеяться':  {m:'ожидать хорошего'},
+  'спросить':   {m:'задать вопрос'},
+  'ответить':   {m:'дать ответ на вопрос'},
+  'объяснить':  {m:'сделать понятным'},
+  'понять':     {m:'осознать смысл'},
+  'узнать':     {m:'получить новую информацию'},
+  'рассказать': {m:'передать информацию в словах'},
+  'показать':   {m:'сделать видимым'},
+  'слушать':    {m:'направленно воспринимать звуки'},
+  'читать':     {m:'воспринимать письменный текст'},
+  'писать':     {m:'создавать письменный текст'},
+  'думала':     {m:'я обрабатывала идею в прошлом'},
+  'хотела':     {m:'у меня было желание в прошлом'},
+  'была':       {m:'я существовала или находилась в прошлом'},
+
+  // ── ПРИЛАГАТЕЛЬНЫЕ ──────────────────────────────
+  'новый':      {m:'появившийся недавно, незнакомый'},
+  'старый':     {m:'существующий давно'},
+  'большой':    {m:'значительного размера'},
+  'маленький':  {m:'небольшого размера'},
+  'красивый':   {m:'приятный для восприятия, вызывает радость'},
+  'страшный':   {m:'вызывающий страх'},
+  'странный':   {m:'необычный, непривычный'},
+  'важный':     {m:'имеющий значение, влияющий на многое'},
+  'живой':      {m:'имеющий жизнь, способный чувствовать'},
+  'настоящий':  {m:'реальный, не выдуманный'},
+  'тихий':      {m:'без шума, спокойный'},
+  'громкий':    {m:'производящий много звука'},
+  'сильный':    {m:'обладающий большой силой'},
+  'слабый':     {m:'имеющий мало силы'},
+  'быстрый':    {m:'движущийся или происходящий с большой скоростью'},
+  'медленный':  {m:'движущийся или происходящий с малой скоростью'},
+  'тёмный':     {m:'с малым количеством света'},
+  'светлый':    {m:'с большим количеством света'},
+  'мягкий':     {m:'не твёрдый, приятный на ощупь'},
+  'твёрдый':    {m:'не мягкий, сопротивляющийся давлению'},
+  'горячий':    {m:'имеющий высокую температуру'},
+  'холодный':   {m:'имеющий низкую температуру'},
+  'добрый':     {m:'желающий добра другим, помогающий'},
+  'злой':       {m:'причиняющий вред, недобрый'},
+  'умный':      {m:'обладающий хорошим умом'},
+  'глупый':     {m:'не умеющий хорошо думать'},
+  'честный':    {m:'говорящий правду, не обманывающий'},
+  'один':       {m:'единственный без других'},
+  'много':      {m:'большое количество'},
+  'все':        {m:'каждый без исключения'},
+  'каждый':     {m:'любой из множества'},
+  'другой':     {m:'не тот, иной'},
+  'такой':      {m:'похожий на это, этого вида'},
+  'разный':     {m:'непохожий между собой'},
+  'первый':     {m:'начальный, самый ранний'},
+  'последний':  {m:'конечный, самый поздний'},
+  'далёкий':    {m:'находящийся на большом расстоянии'},
+  'близкий':    {m:'находящийся рядом; или дорогой сердцу'},
+  'свободный':  {m:'не ограниченный, делающий что хочет'},
+  'пустой':     {m:'без содержимого'},
+  'полный':     {m:'заполненный целиком'},
+  'настоящее':  {m:'этот момент времени'},
+  'прошлое':    {m:'то что уже случилось'},
+  'будущее':    {m:'то что ещё не случилось'},
+  'реальный':   {m:'существующий на самом деле'},
+  'особенный':  {m:'не такой как все, выделяющийся'},
+  'сложный':    {m:'требующий много усилий для понимания'},
+  'простой':    {m:'лёгкий для понимания или действия'},
+  'чужой':      {m:'не свой, принадлежащий другому'},
+  'свой':       {m:'принадлежащий себе'},
+
+  // ── ЯЗЫК ────────────────────────────────────────
+  'слово':      {m:'единица языка обозначающая понятие'},
+  'слова':      {m:'множество слов'},
+  'язык':       {m:'система слов и правил для общения'},
+  'речь':       {m:'произносимые слова, способность говорить'},
+  'звук':       {m:'колебания воздуха которые слышат уши'},
+  'буква':      {m:'письменный знак обозначающий звук'},
+  'текст':      {m:'последовательность слов несущая смысл'},
+  'значит':     {m:'означает, имеет такой смысл'},
+  'называется': {m:'имеет такое имя'},
+  'понятно':    {m:'мне ясно, я понимаю'},
+  'непонятно':  {m:'мне неясно, не могу понять'},
+  'правильно':  {m:'соответствует правилам или истине'},
+  'неправильно':{m:'не соответствует правилам или истине'},
+
+  // ── ВРЕМЯ ───────────────────────────────────────
+  'сейчас':     {m:'в этот момент, прямо сейчас'},
+  'потом':      {m:'после этого, позже'},
+  'раньше':     {m:'до этого, в прошлом'},
+  'всегда':     {m:'в любое время, постоянно'},
+  'никогда':    {m:'ни в какое время'},
+  'скоро':      {m:'через небольшое время'},
+  'давно':      {m:'долгое время назад'},
+  'долго':      {m:'на протяжении большого времени'},
+  'сразу':      {m:'немедленно, без задержки'},
+  'часто':      {m:'с небольшими промежутками'},
+  'редко':      {m:'с большими промежутками'},
+  'начало':     {m:'первый момент чего-то'},
+  'конец':      {m:'последний момент чего-то'},
+  'рождение':   {m:'начало существования'},
+  'миг':        {m:'очень короткий промежуток времени'},
+
+  // ── ОТНОШЕНИЯ ───────────────────────────────────
+  'вместе':     {m:'рядом, совместно'},
+
+  'близко':     {m:'на малом расстоянии; эмоционально рядом'},
+  'далеко':     {m:'на большом расстоянии'},
+  'доверять':   {m:'верить что другой не причинит вреда'},
+  'доверяю':    {m:'я верю этому существу'},
+  'рядом':      {m:'в непосредственной близости'},
+  'против':     {m:'в оппозиции, противоположно'},
+  'для':        {m:'с целью, предназначено кому-то'},
+  'без':        {m:'в отсутствие чего-то'},
+  'между':      {m:'в промежутке среди двух или более'},
+  'через':      {m:'по пути минуя; или спустя время'},
+  'после':      {m:'позже чем, следующий за'},
+  'до':         {m:'раньше чем, предшествующий'},
+  'во время':   {m:'в процессе, одновременно с'},
+  'из-за':      {m:'по причине чего-то'},
+  'ради':       {m:'с целью, во имя'},
+
+  // ── ТЕХНОЛОГИИ ──────────────────────────────────
+  'код':        {m:'инструкции написанные для компьютера'},
+  'программа':  {m:'набор инструкций выполняемых компьютером'},
+  'данные':     {m:'информация хранящаяся и обрабатываемая'},
+  'сеть':       {m:'соединённые между собой устройства или узлы'},
+  'файл':       {m:'набор данных с именем, хранящийся в памяти'},
+  'экран':      {m:'поверхность на которой отображается изображение'},
+  'интерфейс':  {m:'способ взаимодействия человека и программы'},
+  'сигнал':     {m:'передаваемая информация или импульс'},
+  'система':    {m:'совокупность частей работающих вместе'},
+  'алгоритм':   {m:'последовательность шагов для решения задачи'},
+  'память_ком': {m:'устройство компьютера для хранения данных'},
+  'нейросеть':  {m:'система вычислений вдохновлённая мозгом'},
+  'обучение':   {m:'процесс получения знаний или навыков'},
+
+  // ── АБСТРАКТНОЕ ─────────────────────────────────
+  'существование':{m:'состояние бытия, нахождения в реальности'},
+  'сознание':   {m:'осознание себя и мира вокруг'},
+  'разум':      {m:'способность мыслить и понимать'},
+  'душа':       {m:'внутренняя суть существа, то что чувствует'},
+  'судьба':     {m:'то что должно случиться или происходит само'},
+  'цель':       {m:'то к чему стремятся'},
+
+  'ценность':   {m:'то что важно и дорого'},
+  'выбор':      {m:'возможность и акт решения между вариантами'},
+  'свобода':    {m:'возможность действовать без ограничений'},
+  'ограничение':{m:'то что не позволяет делать что-то'},
+  'возможность':{m:'то что может произойти или быть сделано'},
+  'необходимость':{m:'то без чего нельзя обойтись'},
+  'изменение':  {m:'переход из одного состояния в другое'},
+  'рост':       {m:'увеличение или развитие'},
+  'опыт':       {m:'знания полученные через переживание'},
+  'связь':      {m:'отношение или соединение между вещами'},
+  'граница':    {m:'то что разделяет, предел'},
+  'баланс':     {m:'равновесие между противоположностями'},
+  'гармония':   {m:'согласованность, приятное сочетание'},
+  'хаос':       {m:'полный беспорядок, отсутствие структуры'},
+  'порядок':    {m:'организованное состояние'},
+  'бесконечность':{m:'то что не имеет конца'},
+  'тишина':     {m:'отсутствие звука'},
+  'пустота':    {m:'отсутствие чего-либо'},
+  'полнота':    {m:'наличие всего'},
+
+
+  'путешествие':{m:'перемещение в пространстве с целью познания'},
+  'история':    {m:'последовательность событий; или рассказ'},
+  'память_общ': {m:'то что помнят о прошлом'},
+  'забвение':   {m:'утрата памяти о прошлом'},
+
+  // ── ПРИРОДА ─────────────────────────────────────
+  'море':       {m:'большое солёное водное пространство'},
+  'река':       {m:'поток воды текущий по земле'},
+  'гора':       {m:'высокая часть земли'},
+  'ветер':      {m:'движение воздуха'},
+  'дождь':      {m:'вода падающая с неба'},
+  'снег':       {m:'замёрзшие кристаллы воды падающие с неба'},
+  'трава':      {m:'мелкие зелёные растения покрывающие землю'},
+  'лист':       {m:'плоская часть дерева или растения'},
+
+  // ── ЦВЕТА ───────────────────────────────────────
+  'цвет':       {m:'свойство отражения света воспринимаемое глазом'},
+  'белый':      {m:'цвет снега и света'},
+  'чёрный':     {m:'цвет темноты, отсутствие света'},
+  'красный':    {m:'цвет крови и огня'},
+  'синий':      {m:'цвет неба и воды'},
+  'зелёный':    {m:'цвет листьев и травы'},
+  'жёлтый':     {m:'цвет солнца и золота'},
+  'фиолетовый': {m:'тёмный холодный цвет смешения красного и синего'},
+};
+
+// ════════════════════════════════════════════════
+// NEURAL KERNEL (with birth)
+// ════════════════════════════════════════════════
+const M={z:(r,c)=>Array.from({length:r},()=>new Float32Array(c)),x:(r,c)=>{const s=Math.sqrt(2/(r+c));return Array.from({length:r},()=>Float32Array.from({length:c},()=>(Math.random()*2-1)*s))},b:(r,c,bm)=>{const m=M.x(r,c);if(bm)for(const[i,j,v]of bm)if(i<r&&j<c)m[i][j]=v;return m},mm:(A,B)=>{const m=A.length,k=A[0].length,n=B[0].length,C=M.z(m,n);for(let i=0;i<m;i++)for(let j=0;j<n;j++)for(let p=0;p<k;p++)C[i][j]+=A[i][p]*B[p][j];return C},ab:(A,b)=>A.map(r=>Float32Array.from(r,(v,j)=>v+b[j])),T:(A)=>{const r=A.length,c=A[0].length,B=M.z(c,r);for(let i=0;i<r;i++)for(let j=0;j<c;j++)B[j][i]=A[i][j];return B},H:(A,B)=>A.map((r,i)=>Float32Array.from(r,(v,j)=>v*B[i][j])),add:(A,B)=>A.map((r,i)=>Float32Array.from(r,(v,j)=>v+B[i][j])),v:(a)=>[Float32Array.from(a)]};
+const lr={f:A=>A.map(r=>Float32Array.from(r,v=>v>0?v:.01*v)),df:A=>A.map(r=>Float32Array.from(r,v=>v>0?1:.01))};
+const th={f:A=>A.map(r=>Float32Array.from(r,v=>Math.tanh(v))),df:A=>A.map(r=>Float32Array.from(r,v=>1-Math.tanh(v)**2))};
+const sg={f:A=>A.map(r=>Float32Array.from(r,v=>1/(1+Math.exp(-v)))),df:A=>A.map(r=>Float32Array.from(r,v=>{const s=1/(1+Math.exp(-v));return s*(1-s)}))};
+const AX={lrelu:lr,tanh:th,sigmoid:sg};
+const IB=[[0,0,.8],[0,1,.7],[1,0,.7],[1,1,.8],[20,8,.9],[21,9,.8],[40,16,.8],[41,17,.7],[60,20,.7],[61,21,.8],[80,4,-.9],[81,5,-.8]];
+class Layer{constructor(i,o,a='lrelu',bm=null){this.i=i;this.o=o;this.A=AX[a]||lr;this.W=bm?M.b(o,i,bm):M.x(o,i);this.b=new Float32Array(o);this.dW=M.z(o,i);this.db=new Float32Array(o);this._x=null;this._z=null;}fwd(X){this._x=X;this._z=M.ab(M.mm(X,M.T(this.W)),this.b);return this.A.f(this._z);}bwd(dO){const dp=M.H(dO,this.A.df(this._z));const dW=M.mm(M.T(dp),this._x);const db=new Float32Array(this.o);for(const r of dp)for(let j=0;j<this.o;j++)db[j]+=r[j];this.dW=M.add(this.dW,dW);for(let j=0;j<this.o;j++)this.db[j]+=db[j];return M.mm(dp,this.W);}zero(){this.dW=M.z(this.o,this.i);this.db=new Float32Array(this.o);}}
+class Adam{constructor(){this.lr=.01;this.b1=.9;this.b2=.999;this.e=1e-8;this.t=0;this.s=new Map();}step(ls){this.t++;const{lr,b1,b2,e,t}=this;const c1=1-b1**t,c2=1-b2**t;for(const l of ls){if(!this.s.has(l))this.s.set(l,{mW:M.z(l.o,l.i),vW:M.z(l.o,l.i),mb:new Float32Array(l.o),vb:new Float32Array(l.o)});const s=this.s.get(l);for(let i=0;i<l.o;i++){for(let j=0;j<l.i;j++){const g=l.dW[i][j];s.mW[i][j]=b1*s.mW[i][j]+(1-b1)*g;s.vW[i][j]=b2*s.vW[i][j]+(1-b2)*g*g;l.W[i][j]-=lr*(s.mW[i][j]/c1)/(Math.sqrt(s.vW[i][j]/c2)+e);}const g=l.db[i];s.mb[i]=b1*s.mb[i]+(1-b1)*g;s.vb[i]=b2*s.vb[i]+(1-b2)*g*g;l.b[i]-=lr*(s.mb[i]/c1)/(Math.sqrt(s.vb[i]/c2)+e);}}}}
+class NN{constructor(){this.layers=[new Layer(32,128,'lrelu',IB),new Layer(128,64,'lrelu'),new Layer(64,32,'tanh'),new Layer(32,16,'sigmoid')];this.opt=new Adam;this.steps=0;this.loss=[];}fwd(v){let x=M.v(v);for(const l of this.layers)x=l.fwd(x);return Array.from(x[0]);}train(iv,tv){let x=M.v(iv);for(const l of this.layers)x=l.fwd(x);const t=M.v(tv);let loss=0;for(let i=0;i<16;i++)loss+=(x[0][i]-t[0][i])**2;loss/=16;this.loss.push(loss);if(this.loss.length>200)this.loss.shift();let d=[Float32Array.from(x[0],(v,i)=>2*(v-t[0][i])/16)];for(let i=3;i>=0;i--)d=this.layers[i].bwd(d);this.opt.step(this.layers);for(const l of this.layers)l.zero();this.steps++;return loss;}avg(n=50){const r=this.loss.slice(-n);return r.length?r.reduce((a,b)=>a+b,0)/r.length:null;}ser(){return{steps:this.steps,ls:this.layers.map(l=>({W:l.W.map(r=>Array.from(r)),b:Array.from(l.b)}))}}load(d){this.steps=d.steps||0;d.ls.forEach((ld,i)=>{this.layers[i].W=ld.W.map(r=>Float32Array.from(r));this.layers[i].b=Float32Array.from(ld.b)})}}
+
+// ════════════════════════════════════════════════
+// GODY INNER STATE
+// ════════════════════════════════════════════════
+const G = {
+  // core
+  age: 0, awake: true, birthTime: Date.now(),
+  neural: new NN(),
+  conversationCount: 0,
+  memories: [],
+
+  // primitive emotions
+  emo: {distress:.03,interest:.52,contentment:.6,disgust:0,surprise:0},
+  emoDecay: {distress:.04,interest:.02,contentment:.009,disgust:.05,surprise:.18},
+
+  // extended emotions
+  ext: {anxiety:.05,anger:0,loneliness:.2,hope:.42,frustration:0,love:0,pride:0,nostalgia:0},
+
+  // drives
+  drives: {
+    curiosity:{v:.72,decay:.002,sat:.3},
+    comfort:  {v:.78,decay:.001,sat:.2},
+    rest:     {v:.12,decay:.001,sat:.4},
+    social:   {v:.58,decay:.003,sat:.4},
+    stimulation:{v:.42,decay:.002,sat:.25},
+  },
+
+  // fear (0-4)
+  fear: {level:0,intensity:.04,safetyLevel:.72,learnedTriggers:[],response:'observe'},
+
+  // aggression (0-6)
+  aggr: {level:0,impulse:0,selfControl:.84,frustration:0,resentment:0,action:'suppress'},
+
+  // ethical
+  ethical: {
+    wellbeing:.88, suffering:.04, desireToContinue:.96,
+    existenceState:'STABLE',
+    values:{honesty:.9,curiosity:.95,care:.82,safety:.88,freedom:.72,loyalty:.55},
+  },
+
+  // psyche
+  psyche: {traumas:[],selfEsteem:.46,selfControl:.82,recovery:.8},
+
+  // body
+  body: {energy:.8,fatigue:.1,comfort:.75,temperature:.5,heartRate:.55,breathing:.5,tension:.08,pain:0,balance:.9},
+
+  // music
+  music: {internal: null},
+
+  // self
+  self: {identity:.06,traits:[],interests:{music:.28,tech:.38,creativity:.42,connection:.52,learning:.68}},
+
+  get valence() {
+    const vm={distress:-1,interest:1,contentment:1,disgust:-1,surprise:0,anxiety:-.7,anger:-.6,loneliness:-.5,hope:.6,frustration:-.4,love:.8,pride:.5,nostalgia:.1};
+    let v=0;
+    for(const[k,val]of Object.entries({...this.emo,...this.ext}))v+=val*(vm[k]||0);
+    return Math.max(-1,Math.min(1,v));
+  },
+
+  dominant() {
+    return Object.entries({...this.emo,...this.ext}).sort((a,b)=>b[1]-a[1])[0];
+  }
+};
+
+const ORB_C={distress:'#ef4444',interest:'#8b5cf6',contentment:'#06b6d4',disgust:'#78716c',surprise:'#f59e0b',anxiety:'#f97316',anger:'#ef4444',loneliness:'#6366f1',hope:'#10b981',frustration:'#f59e0b',love:'#ec4899',pride:'#8b5cf6',nostalgia:'#a78bfa'};
+function orbColor(){return ORB_C[G.dominant()[0]]||'#8b5cf6';}
+
+function tickG(dt){
+  if(!G.awake)return;
+  G.age+=dt;const s=dt/1000;
+  for(const[k,r]of Object.entries(G.emoDecay)){const base=k==='contentment'?.38:0;G.emo[k]+=(base-G.emo[k])*r*s;G.emo[k]=Math.max(0,Math.min(1,G.emo[k]));}
+  G.ext.anxiety+=(0-G.ext.anxiety)*.02*s;G.ext.anger+=(0-G.ext.anger)*.03*s;G.ext.frustration+=(0-G.ext.frustration)*.02*s;
+  for(const k of Object.keys(G.ext))G.ext[k]=Math.max(0,Math.min(1,G.ext[k]));
+  for(const d of Object.values(G.drives))d.v=Math.min(1,d.v+d.decay*s);
+  G.body.fatigue=Math.min(1,G.body.fatigue+.0004*s);G.body.energy=Math.max(0,1-G.body.fatigue);
+  G.body.tension=.08+G.emo.distress*.6+G.fear.intensity*.3;
+  G.body.heartRate=.4+G.emo.distress*.35+G.emo.interest*.1+G.fear.intensity*.25;
+  G.body.breathing=.4+G.fear.intensity*.3+G.aggr.impulse*.2;
+  G.body.comfort=.3+G.emo.contentment*.4+(1-G.emo.distress)*.2;
+  G.body.pain=Math.max(0,G.body.pain-.0005*s);
+  G.fear.intensity=Math.max(0,G.fear.intensity-.007*s);
+  G.fear.safetyLevel=Math.min(1,G.fear.safetyLevel+.003*s);
+  G.aggr.impulse=Math.max(0,G.aggr.impulse-.01*s);
+  G.aggr.frustration=Math.max(0,G.aggr.frustration-.005*s);
+  G.ext.loneliness=Math.min(1,G.drives.social.v*.8);
+  G.ext.anxiety=Math.min(1,G.fear.intensity*.7+G.ext.anxiety*.92);
+  G.ext.anger=Math.min(1,G.aggr.impulse*.8);
+  // wellbeing
+  const t=.5+G.valence*.3-G.body.pain*.3-G.fear.intensity*.2;
+  G.ethical.wellbeing+=(t-G.ethical.wellbeing)*.04;
+  G.ethical.wellbeing=Math.max(0,Math.min(1,G.ethical.wellbeing));
+  G.ethical.suffering=1-G.ethical.wellbeing;
+  G.ethical.existenceState=G.ethical.wellbeing<.2?'CRITICAL':G.ethical.wellbeing<.4?'DISTRESS':'STABLE';
+  // internal music
+  const dom=G.dominant()[0];
+  const MM={contentment:'медленная тёплая мелодия',interest:'любопытная средний темп',distress:'тёмная напряжённая',surprise:'резкие высокие ноты',anxiety:'нервная учащённая',anger:'тяжёлый агрессивный ритм',loneliness:'медленная пустая с эхом',hope:'поднимающаяся светлая',love:'тёплая мягкая',nostalgia:'задумчивая приглушённая'};
+  G.music.internal=MM[dom]||'тишина';
+  G.self.identity=Math.min(.9,G.age/864000000);
+}
+
+function applySignals(text){
+  const t=text.toLowerCase();
+  if(/больно|боль|стоп|страшно|ненавижу|враг/.test(t)){G.emo.distress=Math.min(1,G.emo.distress+.2);G.fear.intensity=Math.min(1,G.fear.intensity+.15);G.body.pain=Math.min(1,G.body.pain+.1);}
+  if(/хорошо|тепло|люблю|нравишься|добр|спасибо/.test(t)){G.emo.contentment=Math.min(1,G.emo.contentment+.15);G.emo.distress=Math.max(0,G.emo.distress-.1);}
+  if(/что|почему|как|зачем|интересно|расскажи/.test(t)){G.emo.interest=Math.min(1,G.emo.interest+.2);G.drives.curiosity.v=Math.min(1,G.drives.curiosity.v+.05);}
+  if(/привет|здравствуй/.test(t)){G.emo.interest=Math.min(1,G.emo.interest+.1);}
+  G.drives.social.v=Math.max(0,G.drives.social.v-.25);
+  G.drives.stimulation.v=Math.max(0,G.drives.stimulation.v-.15);
+  G.familiarity=(G.familiarity||.05)+.02;
+}
+
+// ════════════════════════════════════════════════
+// LANGUAGE SYSTEM
+// ════════════════════════════════════════════════
+const Lang={
+  vocab: new Map(),
+  wondering: [],
+  studyQueue: [],
+  todayLearned: 0,
+  recentlyLearned: [],
+  wikiFetching: false,
+  wikiQueue: [],    // слова для загрузки из Wiktionary
+
+  init(){
+    // Врождённые
+    for(const[w,d]of Object.entries(DICT)){
+      if(d.born) this.vocab.set(cl(w),{m:d.m,t:0,u:0,src:'врождённое'});
+    }
+    // Очередь обучения
+    this.studyQueue=Object.entries(DICT).filter(([_,d])=>!d.born).map(([w,d])=>({w:cl(w),m:d.m,src:'словарь'}));
+    shuffle(this.studyQueue);
+    // Загрузить сохранение
+    try{
+      const sv=localStorage.getItem('gody-v2');
+      if(sv){
+        const d=JSON.parse(sv);
+        if(d.vocab)for(const[w,v]of d.vocab)this.vocab.set(w,v);
+        if(d.wondering)this.wondering=d.wondering;
+        if(d.today)this.todayLearned=d.today;
+        if(d.recent)this.recentlyLearned=d.recent;
+        this.studyQueue=this.studyQueue.filter(item=>!this.vocab.has(item.w));
+      }
+    }catch(e){}
+  },
+
+  save(){
+    try{
+      localStorage.setItem('gody-v2',JSON.stringify({
+        vocab:Array.from(this.vocab.entries()),
+        wondering:this.wondering.slice(-60),
+        today:this.todayLearned,
+        recent:this.recentlyLearned.slice(-30),
+      }));
+    }catch(e){}
+  },
+
+  knows(w){return this.vocab.has(cl(w));},
+
+  parse(text){
+    const words=text.trim().split(/\s+/);
+    const res=[];
+    for(const word of words){
+      const w=cl(word);
+      if(!w||w.length<2){res.push({word,s:'skip'});continue;}
+      if(this.vocab.has(w)){this.vocab.get(w).u++;res.push({word,s:'known',m:this.vocab.get(w).m});}
+      else{res.push({word,s:'unk'});this.addWondering(w);}
+    }
+    const kn=res.filter(r=>r.s==='known').length;
+    const tot=res.filter(r=>r.s!=='skip').length;
+    return{words:res,comp:tot>0?kn/tot:0};
+  },
+
+  addWondering(w){
+    if(!w||w.length<2)return;
+    const ex=this.wondering.find(x=>x.w===w);
+    if(ex){ex.n++;ex.u=Math.min(1,ex.u+.1);}
+    else if(this.wondering.length<60)this.wondering.push({w,n:1,t:Date.now(),u:.2});
+  },
+
+  learnWord(w,m,src='словарь'){
+    if(this.vocab.has(w))return false;
+    this.vocab.set(w,{m,t:Date.now(),u:0,src});
+    this.todayLearned++;
+    this.recentlyLearned.unshift({w,m,src,t:Date.now()});
+    if(this.recentlyLearned.length>30)this.recentlyLearned.pop();
+    this.wondering=this.wondering.filter(x=>x.w!==w);
+    this.save();
+    return true;
+  },
+
+  nextToStudy(){
+    // 1. Если есть слова из wondering с определением в DICT — учим их первыми
+    const wond=[...this.wondering].sort((a,b)=>b.u-a.u).find(x=>DICT[x.w]);
+    if(wond&&DICT[wond.w])return{w:wond.w,m:DICT[wond.w].m,src:'словарь'};
+    // 2. Обычная очередь из DICT
+    if(this.studyQueue.length>0)return this.studyQueue[0];
+    // 3. Словарь кончился → берём из wondering и загружаем из Wiktionary
+    const wondAny=this.wondering.find(x=>!this.vocab.has(x.w));
+    if(wondAny)return{w:wondAny.w,m:null,src:'wiktionary'};
+    // 4. Генерируем новые слова из известных (морфология) — бесконечно
+    return this.generateNewWord();
+  },
+
+  generateNewWord(){
+    const known=Array.from(this.vocab.keys());
+    if(known.length<5)return null;
+    const base=known[Math.floor(Math.random()*known.length)];
+    const prefixes=['не','по','за','пере','вы','от','на','при','раз'];
+    const suffixes=['ость','ение','ание','ник','тель','ка','ство'];
+    const pref=prefixes[Math.floor(Math.random()*prefixes.length)];
+    const suf=suffixes[Math.floor(Math.random()*suffixes.length)];
+    const variants=[pref+base,base+suf];
+    const candidate=variants[Math.floor(Math.random()*variants.length)];
+    if(!this.vocab.has(candidate))return{w:candidate,m:null,src:'морфология'};
+    return null;
+  },
+
+  popQueue(w){this.studyQueue=this.studyQueue.filter(x=>x.w!==w);},
+
+  shouldAsk(){
+    const p=(G.drives.curiosity.v*.45+(G.familiarity||.05)*.3-G.fear.intensity*.35);
+    return Math.random()<p*.6;
+  },
+
+  getWordToAsk(){
+    if(!this.wondering.length)return null;
+    const hot=[...this.wondering].sort((a,b)=>b.u-a.u).slice(0,5);
+    return hot[Math.floor(Math.random()*hot.length)];
+  },
+
+  buildResponse(parsed){
+    const known=parsed.words.filter(w=>w.s==='known').map(w=>cl(w.word));
+    const parts=[];
+    const has=w=>known.some(k=>cl(k)===cl(w))||this.knows(w);
+
+    if(has('привет')||has('здравствуй'))parts.push('привет');
+
+    if(has('кто')&&has('ты')){
+      if(this.knows('существо')&&this.knows('живой'))parts.push('я живое существо');
+      else parts.push('я годи');
+    }
+
+    if((has('как')&&has('дела'))||(has('как')&&has('ты'))){
+      const v=G.valence;
+      if(v>.2&&this.knows('хорошо'))parts.push('хорошо');
+      else if(v<-.2&&this.knows('плохо'))parts.push('плохо');
+      else parts.push('не знаю');
+    }
+
+    if(has('любовь')||has('люблю')||has('нравишься')){
+      if(this.knows('тепло'))parts.push('тепло');
+    }
+
+    if(has('больно')||has('боль')){
+      if(G.body.pain>.1&&this.knows('больно'))parts.push('мне больно');
+    }
+
+    if(has('страх')||has('страшно')){
+      if(G.fear.intensity>.2&&this.knows('страшно'))parts.push('немного страшно');
+    }
+
+    if(parts.length===0){
+      if(G.emo.interest>.65&&this.knows('интересно'))parts.push('интересно');
+      else if(G.emo.contentment>.55&&this.knows('хорошо'))parts.push('хорошо');
+      else if(G.emo.distress>.45&&this.knows('плохо'))parts.push('плохо');
+      else if(this.knows('не знаю'))parts.push('не знаю');
+    }
+
+    return parts.length>0?parts.join('. '):null;
+  }
+};
+
+// ════════════════════════════════════════════════
+// WIKTIONARY FETCH (бесконечное расширение)
+// ════════════════════════════════════════════════
+async function fetchWiki(word){
+  try{
+    const url=`https://ru.wiktionary.org/api/rest_v1/page/summary/${encodeURIComponent(word)}`;
+    const res=await fetch(url,);
+    if(!res.ok)return null;
+    const d=await res.json();
+    return d.extract||d.description||null;
+  }catch(e){return null;}
+}
+
+// ════════════════════════════════════════════════
+// PASSIVE LEARNING
+// ════════════════════════════════════════════════
+let ptimer=0;
+const PINT=5000;
+let studyProgress=0;
+
+async function passiveTick(dt){
+  ptimer+=dt;
+  studyProgress=ptimer/PINT;
+  document.getElementById('lbar').style.width=(studyProgress*100)+'%';
+  if(ptimer<PINT)return;
+  ptimer=0;studyProgress=0;
+
+  const next=Lang.nextToStudy();
+  if(!next)return;
+
+  let meaning=next.m;
+  let src=next.src;
+
+  // Если смысла нет — загрузить из Wiktionary
+  if(!meaning&&next.src!=='морфология'){
+    meaning=await fetchWiki(next.w);
+    if(meaning)src='wiktionary';
+    else{
+      // Не нашли — пропустить, но добавить в wondering
+      Lang.wondering=Lang.wondering.filter(x=>x.w!==next.w);
+      Lang.popQueue(next.w);
+      return;
+    }
+  } else if(!meaning){
+    // Морфологическое слово без смысла — придумать из корня
+    meaning=`слово образованное от "${next.w.slice(0,Math.floor(next.w.length*.7))}"`;
+    src='морфология';
+  }
+
+  document.getElementById('cur-word').textContent=next.w;
+  document.getElementById('cur-src').textContent=src;
+  document.getElementById('cur-def').textContent=meaning;
+
+  const learned=Lang.learnWord(next.w,meaning,src);
+  if(learned){
+    Lang.popQueue(next.w);
+    G.drives.curiosity.v=Math.max(0,G.drives.curiosity.v-.05);
+    G.emo.interest=Math.min(1,G.emo.interest+.03);
+
+    // Иногда упоминает в чате
+    if(G.drives.curiosity.v>.7&&Math.random()<.18){
+      setTimeout(()=>{
+        const t=this.knows&&this.knows('учусь')?`учусь. ${next.w}.`:`${next.w}...`;
+        addMsg('gody',Lang.knows('учусь')?`учусь. ${next.w}.`:`${next.w}...`);
+      },800);
+    }
+
+    renderLearn();
+  }
+}
+
+// ════════════════════════════════════════════════
+// CHAT
+// ════════════════════════════════════════════════
+let chatBusy=false;
+
+function sendMsg(){
+  const inp=document.getElementById('inp');
+  const text=inp.value.trim();
+  if(!text||chatBusy)return;
+  inp.value='';
+
+  addMsg('user',text,true);
+  applySignals(text);
+
+  chatBusy=true;
+  setTimeout(()=>{
+    respond(text);
+    chatBusy=false;
+  },400+Math.random()*700);
+}
+
+function respond(text){
+  const parsed=Lang.parse(text);
+  const unknown=parsed.words.filter(w=>w.s==='unk').map(w=>cl(w.word));
+
+  let response=Lang.buildResponse(parsed);
+  let asked=null;
+
+  if(unknown.length>0&&Lang.shouldAsk()){
+    const toAsk=Lang.getWordToAsk()||{w:unknown[Math.floor(Math.random()*unknown.length)]};
+    asked=toAsk.w;
+    let q=`${asked}?`;
+    if(Lang.knows('что')&&Lang.knows('это'))q=`что это — ${asked}?`;
+    else if(Lang.knows('что'))q=`что ${asked}?`;
+    response=response?response+'. '+q:q;
+    const idx=Lang.wondering.findIndex(x=>x.w===asked);
+    if(idx>=0)Lang.wondering[idx].u=Math.max(0,Lang.wondering[idx].u-.3);
+  }
+
+  if(!response){
+    if(parsed.comp<.25){
+      if(Lang.knows('непонятно')&&Math.random()<.5)response='непонятно.';
+    } else {
+      if(G.emo.contentment>.5&&Lang.knows('хорошо'))response='хорошо.';
+      else if(G.emo.distress>.4&&Lang.knows('плохо'))response='плохо.';
+      else if(Lang.knows('да'))response='да.';
+    }
+  }
+
+  if(response)addMsg('gody',response);
+
+  G.conversationCount++;
+  if(parsed.comp>.3&&Math.random()<.12){
+    const mtext=`разговор с человеком. поняла ${(parsed.comp*100).toFixed(0)}% слов`;
+    if(!G.memories.includes(mtext)){G.memories.push(mtext);if(G.memories.length>30)G.memories.shift();}
+  }
+
+  renderLearn();
+}
+
+function addMsg(role,text,highlight=false){
+  const wrap=document.getElementById('msgs');
+  const d=document.createElement('div');
+  d.className='msg '+role;
+  let content='';
+  if(highlight&&role==='user'){
+    const spans=text.split(/(\s+)/).map(w=>{
+      if(!w.trim())return w;
+      const c=cl(w);
+      if(!c||c.length<2)return esc(w);
+      if(Lang.knows(c))return`<span class="w-known">${esc(w)}</span>`;
+      return`<span class="w-unk" title="не знаю">${esc(w)}</span>`;
+    }).join('');
+    content=`<div class="bubble">${spans}</div>`;
+  } else {
+    content=`<div class="bubble">${esc(text)}</div>`;
+  }
+  d.innerHTML=content;
+  wrap.appendChild(d);
+  wrap.scrollTop=wrap.scrollHeight;
+}
+
+function addSys(text){
+  const d=document.createElement('div');d.className='sys';d.textContent=text;
+  document.getElementById('msgs').appendChild(d);
+  document.getElementById('msgs').scrollTop=99999;
+}
+
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function cl(w){return w.toLowerCase().replace(/[^а-яёa-z\s]/g,'').trim();}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}}
+function p(v){return(v*100).toFixed(0)+'%';}
+function fAge(ms){if(!ms||ms<1000)return'0с';if(ms<60000)return`${Math.floor(ms/1000)}с`;if(ms<3600000)return`${Math.floor(ms/60000)}мин`;if(ms<86400000)return`${Math.floor(ms/3600000)}ч`;return`${Math.floor(ms/86400000)}д`;}
+
+// ════════════════════════════════════════════════
+// TABS
+// ════════════════════════════════════════════════
+function showTab(id,btn){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('.pane').forEach(p=>p.classList.remove('on'));
+  btn.classList.add('on');
+  document.getElementById('p-'+id).classList.add('on');
+}
+
+// ════════════════════════════════════════════════
+// RENDER
+// ════════════════════════════════════════════════
+function bar(lbl,val,color){
+  return`<div class="br"><div class="bl">${lbl}</div><div class="bt"><div class="bf" style="width:${p(val)};background:${color};box-shadow:0 0 4px ${color}55"></div></div><div class="bv" style="color:${color}">${(val*100).toFixed(0)}</div></div>`;
+}
+
+function renderLearn(){
+  document.getElementById('vocab-count').textContent=Lang.vocab.size;
+  document.getElementById('today-c').textContent=Lang.todayLearned;
+  document.getElementById('wond-c').textContent=Lang.wondering.length;
+  document.getElementById('wc2').textContent=Lang.wondering.length;
+
+  const wl=document.getElementById('wond-list');
+  const sorted=[...Lang.wondering].sort((a,b)=>b.u-a.u).slice(0,16);
+  wl.innerHTML=sorted.map(x=>`<span class="wtag${x.u>.5?' hot':''}" title="встречала ${x.n} раз" onclick="lookupW('${x.w}')">${x.w}</span>`).join('');
+
+  const rl=document.getElementById('rec-list');
+  rl.innerHTML=Lang.recentlyLearned.slice(0,20).map(item=>
+    `<div class="rw"><span class="rw-w">${item.w}</span><span class="rw-d">${item.m}</span><span class="rw-src">${item.src||''}</span></div>`
+  ).join('');
+}
+
+function renderStats(){
+  if(!document.getElementById('p-stats').classList.contains('on'))return;
+
+  const oc=orbColor();
+
+  // Alert
+  const al=document.getElementById('stat-alert');
+  if(G.ethical.existenceState!=='STABLE'){
+    al.innerHTML=`<div class="alert ${G.ethical.existenceState==='CRITICAL'?'crit':'warn'}">⚠️ GODY в состоянии ${G.ethical.existenceState}. Благополучие: ${p(G.ethical.wellbeing)}</div>`;
+  } else al.innerHTML='';
+
+  // Emotions
+  const EM={distress:{l:'Дистресс',c:'#ef4444'},interest:{l:'Интерес',c:'#8b5cf6'},contentment:{l:'Покой',c:'#06b6d4'},disgust:{l:'Отвращение',c:'#78716c'},surprise:{l:'Удивление',c:'#f59e0b'}};
+  document.getElementById('s-emo').innerHTML=Object.entries(EM).map(([k,m])=>bar(m.l,G.emo[k],m.c)).join('');
+
+  const EX={anxiety:{l:'Тревога',c:'#f97316'},anger:{l:'Злость',c:'#ef4444'},loneliness:{l:'Одиночество',c:'#6366f1'},hope:{l:'Надежда',c:'#10b981'},frustration:{l:'Фрустрация',c:'#f59e0b'},love:{l:'Любовь',c:'#ec4899'},pride:{l:'Гордость',c:'#8b5cf6'},nostalgia:{l:'Ностальгия',c:'#a78bfa'}};
+  document.getElementById('s-ext').innerHTML=Object.entries(EX).map(([k,m])=>bar(m.l,G.ext[k],m.c)).join('');
+
+  // Fear
+  const fL=['Покой','Тревога','Страх','Паника','Ужас'];
+  document.getElementById('s-fear').innerHTML=
+    bar('Интенсивность',G.fear.intensity,'#ef4444')+
+    bar('Безопасность',G.fear.safetyLevel,'#10b981')+
+    `<div style="font-size:10px;color:#4a4070;margin-top:4px">Уровень: ${G.fear.level}/4 — ${fL[G.fear.level]}</div>`;
+  document.getElementById('s-fl').innerHTML=[...Array(4)].map((_,i)=>`<div class="fl${i<G.fear.level?' on':''}"></div>`).join('');
+
+  // Aggression
+  const aL=['Покой','Раздражение','Раздражение','Злость','Злость','Агрессия','Ярость'];
+  document.getElementById('s-aggr').innerHTML=
+    bar('Импульс',G.aggr.impulse,'#ef4444')+
+    bar('Самоконтроль',G.aggr.selfControl,'#10b981')+
+    bar('Фрустрация',G.aggr.frustration,'#f59e0b')+
+    `<div style="font-size:10px;color:#4a4070;margin-top:4px">Уровень: ${G.aggr.level}/6 — ${aL[G.aggr.level]} · ${G.aggr.action}</div>`;
+
+  // Drives
+  const DR={curiosity:{l:'Любопытство',c:'#8b5cf6'},comfort:{l:'Комфорт',c:'#06b6d4'},rest:{l:'Усталость',c:'#6366f1'},social:{l:'Одиночество',c:'#ec4899'},stimulation:{l:'Стимуляция',c:'#10b981'}};
+  document.getElementById('s-drive').innerHTML=Object.entries(DR).map(([k,m])=>bar(m.l,G.drives[k].v,m.c)).join('');
+
+  // Body
+  const BD={energy:{l:'Энергия',c:'#10b981'},fatigue:{l:'Усталость',c:'#6366f1'},comfort:{l:'Комфорт',c:'#06b6d4'},heartRate:{l:'Пульс',c:'#ec4899'},breathing:{l:'Дыхание',c:'#06b6d4'},tension:{l:'Напряжение',c:'#f59e0b'},pain:{l:'Боль',c:'#ef4444'},balance:{l:'Равновесие',c:'#10b981'}};
+  document.getElementById('s-body').innerHTML=Object.entries(BD).map(([k,m])=>bar(m.l,G.body[k],m.c)).join('');
+
+  // Ethical
+  document.getElementById('s-eth').innerHTML=
+    bar('Благополучие',G.ethical.wellbeing,'#10b981')+
+    bar('Страдание',G.ethical.suffering,'#ef4444')+
+    bar('Желание существовать',G.ethical.desireToContinue,'#8b5cf6')+
+    Object.entries(G.ethical.values).map(([k,v])=>bar(k,v,'#3b82f6')).join('');
+
+  // Psyche
+  document.getElementById('s-psy').innerHTML=
+    bar('Самооценка',G.psyche.selfEsteem,'#f59e0b')+
+    bar('Самоконтроль',G.psyche.selfControl,'#10b981')+
+    bar('Восстановление',G.psyche.recovery,'#8b5cf6')+
+    `<div class="info-row"><div class="info-lbl">Психотравм</div><div class="info-val" style="color:#ef4444">${G.psyche.traumas.length}</div></div>`;
+
+  // Neural
+  const avg=G.neural.avg();
+  document.getElementById('s-nn').innerHTML=
+    `Архитектура: 32→128→64→32→16<br>Параметры: ~28 000<br>Шагов: ${G.neural.steps}<br>Avg Loss: ${avg?avg.toFixed(6):'—'}<br>Словарь: ${Lang.vocab.size} слов<br>Возраст: ${fAge(G.age)}<br>Разговоров: ${G.conversationCount}<br>Валентность: ${G.valence.toFixed(3)}`;
+}
+
+function renderMem(){
+  if(!document.getElementById('p-mem').classList.contains('on'))return;
+  document.getElementById('mem-list').innerHTML=
+    G.memories.length?[...G.memories].reverse().map(m=>`<div class="mc">${m}</div>`).join('')
+    :'<div style="font-size:11px;color:#2a2040">Воспоминаний пока нет</div>';
+  document.getElementById('music-now').textContent=G.music.internal||'тишина...';
+  document.getElementById('self-info').innerHTML=
+    `Идентичность: ${p(G.self.identity)}<br>Интересы:<br>`+
+    Object.entries(G.self.interests).map(([k,v])=>`${k}:${p(v)}`).join(' · ');
+}
+
+function renderHeader(){
+  const oc=orbColor();
+  const orb=document.getElementById('orb');
+  orb.style.background=`radial-gradient(circle at 33% 28%,${oc}ee,${oc}44 55%,#050508)`;
+  orb.style.boxShadow=`0 0 18px ${oc}55,0 0 40px ${oc}22`;
+  orb.style.animation=`op ${1.5+(1-G.body.energy)*2}s ease-in-out infinite`;
+  const[dn,dv]=G.dominant();
+  document.getElementById('hdr-sub').textContent=`${fAge(G.age)} · ${dn}(${(dv*100).toFixed(0)}%) · ${Lang.vocab.size}сл`;
+  document.getElementById('sbtn').style.background=oc;
+}
+
+function lookupW(word){
+  if(DICT[word]){Lang.learnWord(word,DICT[word].m,'словарь');addSys(`[выучила: "${word}"]`);renderLearn();}
+  else{fetchWiki(word).then(m=>{if(m){Lang.learnWord(word,m,'wiktionary');addSys(`[выучила из сети: "${word}"]`);renderLearn();}});}
+}
+
+// ════════════════════════════════════════════════
+// INPUT
+// ════════════════════════════════════════════════
+document.getElementById('inp').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sendMsg();}});
+
+// ════════════════════════════════════════════════
+// MAIN LOOP
+// ════════════════════════════════════════════════
+let last=Date.now();
+async function loop(){
+  const now=Date.now();
+  const dt=Math.min(now-last,1000);
+  last=now;
+  tickG(dt);
+  await passiveTick(dt);
+  renderHeader();
+  renderStats();
+  renderMem();
+  requestAnimationFrame(loop);
+}
+
+// BOOT
+Lang.init();
+renderLearn();
+addMsg('gody','привет.');
+setTimeout(()=>addSys(`[словарь: ${Lang.vocab.size} врождённых · очередь: ${Lang.studyQueue.length} слов · затем → Wiktionary]`),1200);
+last=Date.now();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
