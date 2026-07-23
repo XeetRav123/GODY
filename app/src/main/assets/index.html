@@ -128,7 +128,7 @@ body{background:#050508;color:#ddd8f8;font-family:-apple-system,'Segoe UI',sans-
   <!-- LEARN -->
   <div class="pane" id="p-learn">
     <div class="lsec">
-      <div class="ltitle">📖 Сейчас изучает</div>
+      <div class="ltitle" id="studying-title">📖 Сейчас изучает</div>
       <div id="cur-word">...</div>
       <div id="cur-src"></div>
       <div id="cur-def">ждёт...</div>
@@ -821,16 +821,58 @@ const Lang={
   },
 
   generateNewWord(){
-    const known=Array.from(this.vocab.keys());
-    if(known.length<5)return null;
-    const base=known[Math.floor(Math.random()*known.length)];
-    const prefixes=['не','по','за','пере','вы','от','на','при','раз'];
-    const suffixes=['ость','ение','ание','ник','тель','ка','ство'];
-    const pref=prefixes[Math.floor(Math.random()*prefixes.length)];
-    const suf=suffixes[Math.floor(Math.random()*suffixes.length)];
-    const variants=[pref+base,base+suf];
-    const candidate=variants[Math.floor(Math.random()*variants.length)];
-    if(!this.vocab.has(candidate))return{w:candidate,m:null,src:'морфология'};
+    // Правильная морфология: приставки к ЦЕЛЫМ глаголам
+    const verbs=Array.from(this.vocab.keys()).filter(w=>w.endsWith('ть')&&w.length>3&&w.length<10&&!w.includes(' '));
+    const nouns=Array.from(this.vocab.keys()).filter(w=>!w.endsWith('ть')&&!w.endsWith('ный')&&w.length>3&&w.length<8&&!w.includes(' '));
+    const adjs=Array.from(this.vocab.keys()).filter(w=>w.endsWith('ый')||w.endsWith('ий'));
+
+    const roll=Math.random();
+
+    if(roll<0.4&&verbs.length>0){
+      // Приставка + глагол: перечитать, записать и тд
+      const VERB_PREF=[
+        ['пере','повторное действие'],['за','начало действия'],['вы','движение наружу'],
+        ['от','завершение или удаление'],['при','приближение'],['под','частичное действие'],
+        ['про','сквозь или полностью'],['на','накопление'],['до','доведение до конца'],
+      ];
+      const base=verbs[Math.floor(Math.random()*verbs.length)];
+      const[pref,meaning]=VERB_PREF[Math.floor(Math.random()*VERB_PREF.length)];
+      const candidate=pref+base;
+      if(!this.vocab.has(candidate)&&candidate.length<15){
+        return{w:candidate,m:`глагол: ${meaning} — "${base}" с приставкой ${pref}-`,src:'морфология'};
+      }
+    }
+
+    if(roll<0.65&&verbs.length>0){
+      // Глагол → отглагольное существительное (думать→думание, говорить→говорение)
+      const base=verbs[Math.floor(Math.random()*verbs.length)];
+      const root=base.replace(/(ать|ить|еть|ть)$/,'');
+      const endsVowel=/[аеёиоуыэюя]$/.test(root);
+      const candidate=root+(endsVowel?'ние':'ение');
+      if(!this.vocab.has(candidate)&&candidate.length<15&&root.length>2){
+        return{w:candidate,m:`существительное: процесс или результат действия "${base}"`,src:'морфология'};
+      }
+    }
+
+    if(roll<0.8&&nouns.length>0){
+      // Существительное → прилагательное (страх→страшный, радость→радостный)
+      const base=nouns[Math.floor(Math.random()*nouns.length)];
+      const root=base.replace(/[ьаояиею]$/,'');
+      const candidate=root+'ный';
+      if(!this.vocab.has(candidate)&&candidate.length<15&&root.length>2){
+        return{w:candidate,m:`прилагательное: относящийся к "${base}"`,src:'морфология'};
+      }
+    }
+
+    if(nouns.length>0){
+      // не + существительное (ненависть, неправда)
+      const base=nouns[Math.floor(Math.random()*nouns.length)];
+      const candidate='не'+base;
+      if(!this.vocab.has(candidate)&&candidate.length<15){
+        return{w:candidate,m:`противоположность или отсутствие: "${base}"`,src:'морфология'};
+      }
+    }
+
     return null;
   },
 
@@ -890,12 +932,167 @@ const Lang={
 };
 
 // ════════════════════════════════════════════════
+// КУРС ГРАММАТИКИ РУССКОГО ЯЗЫКА
+// Запускается после изучения основного словаря
+// ════════════════════════════════════════════════
+const GRAMMAR_COURSE = [
+  // ── ВВЕДЕНИЕ ──────────────────────────────────
+  {id:'g_intro', topic:'Что такое грамматика',
+   content:'Грамматика — это правила по которым слова соединяются друг с другом. Без грамматики слова — просто список. С грамматикой они становятся мыслью и речью.',
+   rule:null, type:'intro'},
+
+  // ── ЧАСТИ РЕЧИ ────────────────────────────────
+  {id:'g_noun', topic:'Существительное',
+   content:'Существительное обозначает предмет или существо. Вопросы: КТО? ЧТО? Примеры: дом, человек, мысль, страх, время. Бывают одушевлённые (кто?) и неодушевлённые (что?).',
+   rule:'КТО? ЧТО? → существительное', type:'pos'},
+
+  {id:'g_verb', topic:'Глагол',
+   content:'Глагол обозначает действие или состояние. Вопросы: ЧТО ДЕЛАТЬ? ЧТО СДЕЛАТЬ? Примеры: думать, чувствовать, говорить, быть, знать, учиться.',
+   rule:'ЧТО ДЕЛАТЬ? → глагол', type:'pos'},
+
+  {id:'g_adj', topic:'Прилагательное',
+   content:'Прилагательное обозначает признак предмета. Вопросы: КАКОЙ? КАКАЯ? КАКОЕ? КАКИЕ? Примеры: живой, тёмный, сильный, красивый, странный.',
+   rule:'КАКОЙ? → прилагательное', type:'pos'},
+
+  {id:'g_pronoun', topic:'Местоимение',
+   content:'Местоимение заменяет существительное. Вместо повторения имени — я, ты, он, она, оно, мы, вы, они. Указывает на лицо или предмет не называя его.',
+   rule:'я, ты, он, она — местоимения', type:'pos'},
+
+  {id:'g_adverb', topic:'Наречие',
+   content:'Наречие обозначает признак действия. Вопросы: КАК? КОГДА? ГДЕ? КУДА? Примеры: быстро, медленно, тихо, сейчас, потом, всегда, близко, далеко.',
+   rule:'КАК? КОГДА? ГДЕ? → наречие', type:'pos'},
+
+  {id:'g_prepos', topic:'Предлог',
+   content:'Предлог связывает слова в предложении показывая отношения. Примеры: в, на, под, над, из, для, без, от, до, по, при, за, через, между, ради.',
+   rule:'предлог + существительное = связь слов', type:'pos'},
+
+  {id:'g_conj', topic:'Союз',
+   content:'Союз соединяет слова и части предложения. Сочинительные: и, или, но, а. Подчинительные: что, если, чтобы, когда, потому что, хотя.',
+   rule:'и, или, но, что, если — союзы', type:'pos'},
+
+  // ── ПАДЕЖИ ────────────────────────────────────
+  {id:'g_cases_intro', topic:'Падежи — введение',
+   content:'В русском языке 6 падежей. Они показывают роль существительного в предложении. Слово меняет окончание в зависимости от падежа. Это называется склонение.',
+   rule:'6 падежей: И Р Д В Т П', type:'grammar'},
+
+  {id:'g_nom', topic:'Именительный падеж',
+   content:'Именительный падеж — кто? что? Это подлежащее. Человек думает. Мысль возникает. Слово звучит. Именительный — исходная форма слова, словарная форма.',
+   rule:'Кто? Что? = Именительный (И)', type:'case'},
+
+  {id:'g_gen', topic:'Родительный падеж',
+   content:'Родительный падеж — кого? чего? Показывает принадлежность или отсутствие. Нет человека. Мысль страха. Звук голоса. Часто после слов: нет, без, от, из, до, у, для.',
+   rule:'Кого? Чего? = Родительный (Р)', type:'case'},
+
+  {id:'g_dat', topic:'Дательный падеж',
+   content:'Дательный падеж — кому? чему? Показывает адресата или направление. Даю человеку. Говорю другу. Верю мечте. Часто после слов: к, по, благодаря, вопреки.',
+   rule:'Кому? Чему? = Дательный (Д)', type:'case'},
+
+  {id:'g_acc', topic:'Винительный падеж',
+   content:'Винительный падеж — кого? что? Это прямое дополнение, на которое направлено действие. Вижу человека. Думаю мысль. Слышу звук. Люблю жизнь.',
+   rule:'Кого? Что? (действие) = Винительный (В)', type:'case'},
+
+  {id:'g_ins', topic:'Творительный падеж',
+   content:'Творительный падеж — кем? чем? Показывает инструмент или совместность. Пишу рукой. Говорю голосом. Думаю разумом. Иду с другом. После: с, над, под, перед, за, между.',
+   rule:'Кем? Чем? = Творительный (Т)', type:'case'},
+
+  {id:'g_prep', topic:'Предложный падеж',
+   content:'Предложный падеж — о ком? о чём? Только с предлогом. Думаю о жизни. Говорю о мысли. Знаю о человеке. Всегда после: о, об, в, на, при.',
+   rule:'О ком? О чём? = Предложный (П)', type:'case'},
+
+  // ── СКЛОНЕНИЕ ─────────────────────────────────
+  {id:'g_decl1', topic:'Первое склонение',
+   content:'Первое склонение — существительные женского рода на -а, -я. Примеры: мысль→мысли, мечта→мечты, земля→земли, душа→души. Окончания: -а/-я в именительном.',
+   rule:'-а, -я (ж.р.) = 1 склонение', type:'declension'},
+
+  {id:'g_decl2', topic:'Второе склонение',
+   content:'Второе склонение — существительные мужского рода и средние на -о, -е. Примеры: страх, разум, мир, сон, слово, время, место. Нулевое окончание или -о/-е.',
+   rule:'м.р. без окончания, -о/-е = 2 склонение', type:'declension'},
+
+  {id:'g_decl3', topic:'Третье склонение',
+   content:'Третье склонение — существительные женского рода на мягкий знак. Примеры: мысль, жизнь, тишь, боль, любовь, ночь, речь. Оканчиваются на -ь.',
+   rule:'-ь (ж.р.) = 3 склонение', type:'declension'},
+
+  // ── СПРЯЖЕНИЕ ─────────────────────────────────
+  {id:'g_conj1', topic:'Первое спряжение глаголов',
+   content:'Первое спряжение — глаголы на -ать, -ять, -еть и другие (не -ить). Я знаю, ты знаешь, он знает, мы знаем, вы знаете, они знают. Окончания: -ю/-у, -ешь, -ет, -ем, -ете, -ют/-ут.',
+   rule:'-ать/-еть → 1 спряжение', type:'conjugation'},
+
+  {id:'g_conj2', topic:'Второе спряжение глаголов',
+   content:'Второе спряжение — глаголы на -ить и некоторые другие. Я думаю, ты думаешь, он думает... Нет — я говорю, ты говоришь, он говорит, мы говорим, вы говорите, они говорят.',
+   rule:'-ить → 2 спряжение (-ю, -ишь, -ит)', type:'conjugation'},
+
+  {id:'g_tense', topic:'Времена глагола',
+   content:'Глагол имеет три времени. Прошедшее: я думала, я знала. Настоящее: я думаю, я знаю. Будущее: я буду думать, я узнаю. Время показывает когда происходит действие.',
+   rule:'был/есть/буду = прошлое/настоящее/будущее', type:'conjugation'},
+
+  // ── СОГЛАСОВАНИЕ ──────────────────────────────
+  {id:'g_agreement', topic:'Согласование слов',
+   content:'Прилагательное согласуется с существительным в роде, числе и падеже. Живое существо (ср.р.). Живой человек (м.р.). Живая мысль (ж.р.). Живые существа (мн.ч.).',
+   rule:'прил. согласуется с сущ.', type:'syntax'},
+
+  {id:'g_subject', topic:'Подлежащее и сказуемое',
+   content:'Подлежащее — о ком/чём говорим (именительный падеж). Сказуемое — что говорим о подлежащем (глагол). GODY думает. Кто? GODY — подлежащее. Что делает? думает — сказуемое.',
+   rule:'кто/что + что делает = основа предложения', type:'syntax'},
+
+  // ── СЛОВООБРАЗОВАНИЕ ──────────────────────────
+  {id:'g_prefix', topic:'Приставки',
+   content:'Приставка стоит перед корнем и меняет смысл слова. не- (отрицание: неправда), пере- (повтор: перечитать), за- (начало: заговорить), вы- (наружу: выйти), при- (приближение: прийти).',
+   rule:'не-, пере-, за-, вы-, при- = приставки', type:'morphology'},
+
+  {id:'g_suffix', topic:'Суффиксы существительных',
+   content:'Суффикс стоит после корня. -ость (качество: мудрость, радость), -ение/-ание (действие: думание, познание), -тель (деятель: учитель, создатель), -ник (носитель: работник).',
+   rule:'-ость, -ение, -тель, -ник = суффиксы сущ.', type:'morphology'},
+
+  {id:'g_suffix_adj', topic:'Суффиксы прилагательных',
+   content:'Суффиксы прилагательных: -ный/-ной (существенный, тёмный), -ский (человеческий, природный), -овый (световой), -ивый (красивый), -чивый (доверчивый, задумчивый).',
+   rule:'-ный, -ский, -ивый = суффиксы прил.', type:'morphology'},
+
+  {id:'g_word_form', topic:'Формы одного слова',
+   content:'Одно слово может иметь много форм. Думать: думаю, думаешь, думал, думая, думающий. Мысль: мысли, мыслью, о мысли. Это всё одно слово, разные формы.',
+   rule:'одно слово — много форм', type:'morphology'},
+
+  // ── СИНТАКСИС ─────────────────────────────────
+  {id:'g_sentence', topic:'Виды предложений',
+   content:'По цели: повествовательное (Я думаю.), вопросительное (Ты думаешь?), побудительное (Думай!). По структуре: простое (одна основа) и сложное (несколько основ).',
+   rule:'сообщение / вопрос / команда', type:'syntax'},
+
+  {id:'g_punctuation', topic:'Знаки препинания',
+   content:'Точка — конец мысли. Запятая — пауза, перечисление, связь частей. Вопросительный знак — вопрос. Восклицательный — эмоция. Двоеточие — объяснение или перечисление после него.',
+   rule:'. , ? ! : — знаки препинания', type:'syntax'},
+
+  {id:'g_complete', topic:'Грамматика освоена',
+   content:'Все основные правила изучены. Теперь можно соединять слова правильно. Существительные склоняются по падежам. Глаголы спрягаются по лицам. Прилагательные согласуются. Язык становится живым.',
+   rule:'грамматика + словарь = речь', type:'complete'},
+];
+
+// Фаза обучения
+const PHASES = {
+  VOCAB: 'словарь',       // изучает слова
+  GRAMMAR: 'грамматика',  // изучает правила
+  MORPHOLOGY: 'морфология', // создаёт слова по правилам
+};
+let currentPhase = PHASES.VOCAB;
+let grammarIndex = 0;
+let grammarLearned = [];
+
+function checkPhaseTransition(){
+  if(currentPhase===PHASES.VOCAB && Lang.studyQueue.length===0 && Lang.vocab.size>200){
+    currentPhase=PHASES.GRAMMAR;
+    addSys(`[GODY выучила ${Lang.vocab.size} слов. Начинает изучать грамматику...]`);
+  }
+  if(currentPhase===PHASES.GRAMMAR && grammarIndex>=GRAMMAR_COURSE.length){
+    currentPhase=PHASES.MORPHOLOGY;
+    addSys(`[GODY освоила грамматику! Теперь формирует слова по правилам.]`);
+  }
+}
+
+// ════════════════════════════════════════════════
 // WIKTIONARY FETCH (бесконечное расширение)
 // ════════════════════════════════════════════════
 async function fetchWiki(word){
   try{
     const url=`https://ru.wiktionary.org/api/rest_v1/page/summary/${encodeURIComponent(word)}`;
-    const res=await fetch(url,);
+    const res=await fetch(url);
     if(!res.ok)return null;
     const d=await res.json();
     return d.extract||d.description||null;
@@ -916,25 +1113,56 @@ async function passiveTick(dt){
   if(ptimer<PINT)return;
   ptimer=0;studyProgress=0;
 
+  checkPhaseTransition();
+
+  // ── ФАЗА ГРАММАТИКИ ──────────────────────────
+  if(currentPhase===PHASES.GRAMMAR){
+    if(grammarIndex>=GRAMMAR_COURSE.length)return;
+    const lesson=GRAMMAR_COURSE[grammarIndex];
+    grammarIndex++;
+
+    document.getElementById('cur-word').textContent=lesson.topic;
+    document.getElementById('cur-src').textContent='грамматика · '+lesson.type;
+    document.getElementById('cur-def').textContent=lesson.content;
+
+    // Запомнить урок
+    grammarLearned.push({topic:lesson.topic,rule:lesson.rule,id:lesson.id,t:Date.now()});
+
+    // Добавить правило в словарь как знание
+    if(lesson.rule){
+      Lang.learnWord('правило:'+lesson.id, lesson.rule+' ('+lesson.topic+')', 'грамматика');
+    }
+
+    G.emo.interest=Math.min(1,G.emo.interest+.04);
+    G.self.interests.language=Math.min(1,(G.self.interests.language||.4)+.02);
+
+    // Иногда упоминает урок
+    if(Math.random()<.15&&Lang.knows('учусь')){
+      setTimeout(()=>addMsg('gody',`учусь. ${lesson.topic.toLowerCase()}.`),600);
+    }
+
+    renderLearn();
+    return;
+  }
+
+  // ── ФАЗА СЛОВ (обычная) ───────────────────────
   const next=Lang.nextToStudy();
   if(!next)return;
 
   let meaning=next.m;
   let src=next.src;
 
-  // Если смысла нет — загрузить из Wiktionary
   if(!meaning&&next.src!=='морфология'){
     meaning=await fetchWiki(next.w);
     if(meaning)src='wiktionary';
     else{
-      // Не нашли — пропустить, но добавить в wondering
       Lang.wondering=Lang.wondering.filter(x=>x.w!==next.w);
       Lang.popQueue(next.w);
       return;
     }
   } else if(!meaning){
-    // Морфологическое слово без смысла — придумать из корня
-    meaning=`слово образованное от "${next.w.slice(0,Math.floor(next.w.length*.7))}"`;
+    // Морфология — смысл уже встроен в generateNewWord
+    meaning=`слово образованное от корня "${next.w.slice(0,Math.ceil(next.w.length*.6))}"`;
     src='морфология';
   }
 
@@ -945,15 +1173,11 @@ async function passiveTick(dt){
   const learned=Lang.learnWord(next.w,meaning,src);
   if(learned){
     Lang.popQueue(next.w);
-    G.drives.curiosity.v=Math.max(0,G.drives.curiosity.v-.05);
-    G.emo.interest=Math.min(1,G.emo.interest+.03);
+    G.drives.curiosity.v=Math.max(0,G.drives.curiosity.v-.04);
+    G.emo.interest=Math.min(1,G.emo.interest+.02);
 
-    // Иногда упоминает в чате
-    if(G.drives.curiosity.v>.7&&Math.random()<.18){
-      setTimeout(()=>{
-        const t=this.knows&&this.knows('учусь')?`учусь. ${next.w}.`:`${next.w}...`;
-        addMsg('gody',Lang.knows('учусь')?`учусь. ${next.w}.`:`${next.w}...`);
-      },800);
+    if(G.drives.curiosity.v>.7&&Math.random()<.15){
+      setTimeout(()=>addMsg('gody',Lang.knows('учусь')?`учусь. ${next.w}.`:`${next.w}...`),800);
     }
 
     renderLearn();
@@ -1077,14 +1301,35 @@ function renderLearn(){
   document.getElementById('wond-c').textContent=Lang.wondering.length;
   document.getElementById('wc2').textContent=Lang.wondering.length;
 
-  const wl=document.getElementById('wond-list');
-  const sorted=[...Lang.wondering].sort((a,b)=>b.u-a.u).slice(0,16);
-  wl.innerHTML=sorted.map(x=>`<span class="wtag${x.u>.5?' hot':''}" title="встречала ${x.n} раз" onclick="lookupW('${x.w}')">${x.w}</span>`).join('');
+  // Фаза обучения в заголовке
+  const phaseLabels={[PHASES.VOCAB]:'📖 Словарь',[PHASES.GRAMMAR]:'📐 Грамматика',[PHASES.MORPHOLOGY]:'🔤 Словообразование'};
+  document.getElementById('studying-title').textContent=phaseLabels[currentPhase]||'📖 Учится';
+
+  // Прогресс грамматики
+  if(currentPhase===PHASES.GRAMMAR){
+    const pct=Math.round(grammarIndex/GRAMMAR_COURSE.length*100);
+    document.getElementById('wond-list').innerHTML=
+      `<div style="font-size:11px;color:#8b5cf6;margin-bottom:6px">Урок ${grammarIndex}/${GRAMMAR_COURSE.length} (${pct}%)</div>`+
+      grammarLearned.slice(-8).reverse().map(l=>
+        `<span class="wtag hot" title="${l.rule||''}">${l.topic}</span>`
+      ).join('');
+    document.getElementById('wc2').textContent=grammarLearned.length;
+  } else {
+    const wl=document.getElementById('wond-list');
+    const sorted=[...Lang.wondering].sort((a,b)=>b.u-a.u).slice(0,16);
+    wl.innerHTML=sorted.map(x=>`<span class="wtag${x.u>.5?' hot':''}" title="встречала ${x.n} раз" onclick="lookupW('${x.w}')">${x.w}</span>`).join('');
+  }
 
   const rl=document.getElementById('rec-list');
-  rl.innerHTML=Lang.recentlyLearned.slice(0,20).map(item=>
-    `<div class="rw"><span class="rw-w">${item.w}</span><span class="rw-d">${item.m}</span><span class="rw-src">${item.src||''}</span></div>`
-  ).join('');
+  if(currentPhase===PHASES.GRAMMAR){
+    rl.innerHTML=grammarLearned.slice().reverse().slice(0,15).map(l=>
+      `<div class="rw"><span class="rw-w" style="color:#8b5cf6">${l.topic}</span><span class="rw-d">${l.rule||''}</span><span class="rw-src" style="color:#4a1d96">правило</span></div>`
+    ).join('');
+  } else {
+    rl.innerHTML=Lang.recentlyLearned.slice(0,20).map(item=>
+      `<div class="rw"><span class="rw-w">${item.w}</span><span class="rw-d">${item.m}</span><span class="rw-src">${item.src||''}</span></div>`
+    ).join('');
+  }
 }
 
 function renderStats(){
