@@ -200,6 +200,39 @@ body{background:#050508;color:#ddd8f8;font-family:-apple-system,'Segoe UI',sans-
       <div class="stitle">Самомодель</div>
       <div id="self-info" style="font-size:11px;color:#5a5070;line-height:1.8"></div>
     </div>
+    <div class="ssec" style="flex-shrink:0">
+      <div class="stitle">⚙️ Управление данными</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+        <button onclick="exportKnowledge()" style="padding:10px;background:#0e0820;border:1px solid #8b5cf6;border-radius:8px;color:#a78bfa;font-size:12px;cursor:pointer;text-align:left">
+          📤 Экспорт знаний GODY<br>
+          <span style="font-size:10px;color:#4a4070">Словарь + грамматика + нейросеть. Без данных пользователей.</span>
+        </button>
+        <button onclick="resetUser()" style="padding:10px;background:#0e0505;border:1px solid #ef444444;border-radius:8px;color:#f87171;font-size:12px;cursor:pointer;text-align:left">
+          🗑️ Сбросить мои данные<br>
+          <span style="font-size:10px;color:#4a2020">Воспоминания и история чата. Знания GODY остаются.</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- EXPORT MODAL -->
+  <div id="export-modal" style="display:none;position:fixed;inset:0;background:#000000cc;z-index:999;align-items:center;justify-content:center;padding:16px">
+    <div style="background:#0c071a;border:1px solid #3a1f6e;border-radius:14px;padding:20px;width:100%;max-width:480px;display:flex;flex-direction:column;gap:12px;max-height:90vh">
+      <div style="font-size:14px;font-weight:700;color:#f0eeff">📤 Знания GODY</div>
+      <div style="font-size:11px;color:#5a5070;line-height:1.5">
+        Скопируй JSON → сохрани как <code style="color:#8b5cf6">gody_knowledge.json</code> → положи в <code style="color:#8b5cf6">app/src/main/assets/</code> на GitHub → пересобери APK. Все пользователи получат обученную GODY без чужих данных.
+      </div>
+      <div style="font-size:11px;color:#3a3060">
+        📊 Слов: <span id="exp-words" style="color:#8b5cf6"></span> · 
+        Правил: <span id="exp-rules" style="color:#8b5cf6"></span> · 
+        Нейрошагов: <span id="exp-neural" style="color:#8b5cf6"></span>
+      </div>
+      <textarea id="export-json" readonly style="height:180px;background:#060608;border:1px solid #2a1050;border-radius:8px;padding:10px;color:#4a4060;font-size:10px;font-family:monospace;resize:none;outline:none"></textarea>
+      <div style="display:flex;gap:8px">
+        <button onclick="copyExport()" style="flex:1;padding:10px;background:#4a1d96;border:none;border-radius:8px;color:#fff;font-size:13px;cursor:pointer">📋 Копировать</button>
+        <button onclick="document.getElementById('export-modal').style.display='none'" style="padding:10px 16px;background:#1a1030;border:1px solid #2a1050;border-radius:8px;color:#7870a0;font-size:13px;cursor:pointer">✕</button>
+      </div>
+    </div>
   </div>
 
 </div>
@@ -1067,22 +1100,314 @@ const GRAMMAR_COURSE = [
 
 // Фаза обучения
 const PHASES = {
-  VOCAB: 'словарь',       // изучает слова
-  GRAMMAR: 'грамматика',  // изучает правила
-  MORPHOLOGY: 'морфология', // создаёт слова по правилам
+  VOCAB: 'словарь',
+  READING: 'чтение',       // читает статьи Wikipedia
+  GRAMMAR: 'грамматика',
+  MORPHOLOGY: 'морфология',
 };
 let currentPhase = PHASES.VOCAB;
 let grammarIndex = 0;
 let grammarLearned = [];
+let curriculumData = null;
+let curriculumLevel = 0;    // текущий уровень
+let curriculumTopicIdx = 0; // текущая тема
+let readingQueue = [];       // слова из прочитанных статей
+let lastReadTopic = null;
+let todayDate = new Date().toDateString(); // для сброса "сегодня" только раз в день
+
+// URL curriculum в твоём GitHub репозитории
+const CURRICULUM_URL = 'https://raw.githubusercontent.com/XeetRav123/GODY/main/curriculum.json';
+
+// ════════════════════════════════════════════════
+// STORAGE — надёжное сохранение
+// ════════════════════════════════════════════════
+// ════════════════════════════════════════════════
+// STORAGE — знания отдельно от данных пользователя
+// ════════════════════════════════════════════════
+const KNOW_KEY = 'gody-knowledge-v1'; // что GODY выучила — можно экспортировать
+const USER_KEY = 'gody-user-v1';      // данные пользователя — остаются на его устройстве
+
+// Собрать объект знаний GODY
+function buildKnowledgeObj(){
+  return {
+    version: 2,
+    savedAt: Date.now(),
+    vocab: Array.from(Lang.vocab.entries()),
+    wondering: Lang.wondering.slice(-60),
+    recentlyLearned: Lang.recentlyLearned.slice(-30),
+    todayLearned: Lang.todayLearned,
+    todayDate: todayDate,
+    grammarLearned,
+    grammarIndex,
+    currentPhase,
+    curriculumLevel,
+    curriculumTopicIdx,
+    neural: G.neural.ser(),
+    godyAge: G.age,
+  };
+}
+
+// Применить объект знаний
+function applyKnowledge(d){
+  if(!d||d.version!==2)return false;
+  if(d.vocab)for(const[w,v]of d.vocab)Lang.vocab.set(w,v);
+  if(d.wondering)Lang.wondering=d.wondering;
+  if(d.recentlyLearned)Lang.recentlyLearned=d.recentlyLearned;
+  if(d.todayDate===new Date().toDateString())Lang.todayLearned=d.todayLearned||0;
+  else Lang.todayLearned=0;
+  if(d.grammarLearned)grammarLearned=d.grammarLearned;
+  if(d.grammarIndex!==undefined)grammarIndex=d.grammarIndex;
+  if(d.currentPhase)currentPhase=d.currentPhase;
+  if(d.curriculumLevel!==undefined)curriculumLevel=d.curriculumLevel;
+  if(d.curriculumTopicIdx!==undefined)curriculumTopicIdx=d.curriculumTopicIdx;
+  if(d.neural)try{G.neural.load(d.neural);}catch(e){}
+  if(d.godyAge)G.age=d.godyAge;
+  Lang.studyQueue=Lang.studyQueue.filter(x=>!Lang.vocab.has(x.w));
+  return true;
+}
+
+// Сохранить знания GODY
+function saveKnowledge(){
+  try{
+    localStorage.setItem(KNOW_KEY, JSON.stringify(buildKnowledgeObj()));
+  }catch(e){console.warn('saveKnowledge failed:',e);}
+}
+
+// Сохранить данные пользователя (приватно)
+function saveUser(){
+  try{
+    localStorage.setItem(USER_KEY, JSON.stringify({
+      version: 1,
+      memories: G.memories,
+      conversationCount: G.conversationCount,
+      familiarity: G.familiarity||0.05,
+      emo: {...G.emo},
+      ext: {...G.ext},
+    }));
+  }catch(e){console.warn('saveUser failed:',e);}
+}
+
+function saveAll(){ saveKnowledge(); saveUser(); }
+
+// Загрузить знания: сначала localStorage, потом bundled файл из APK
+async function loadKnowledge(){
+  // 1. Свежее из localStorage
+  try{
+    const raw=localStorage.getItem(KNOW_KEY);
+    if(raw){const d=JSON.parse(raw);if(applyKnowledge(d))return 'local';}
+  }catch(e){}
+  // 2. Предобученный файл из assets APK (gody_knowledge.json рядом с index.html)
+  try{
+    const res=await fetch('gody_knowledge.json');
+    if(res.ok){const d=await res.json();if(applyKnowledge(d))return 'bundled';}
+  }catch(e){}
+  return false;
+}
+
+// Загрузить данные пользователя
+function loadUser(){
+  try{
+    const raw=localStorage.getItem(USER_KEY);
+    if(!raw)return false;
+    const u=JSON.parse(raw);
+    if(u.memories)G.memories=u.memories;
+    if(u.conversationCount)G.conversationCount=u.conversationCount;
+    if(u.familiarity)G.familiarity=u.familiarity;
+    if(u.emo)Object.assign(G.emo,u.emo);
+    if(u.ext)Object.assign(G.ext,u.ext);
+    return true;
+  }catch(e){return false;}
+}
+
+// Экспортировать знания
+function exportKnowledge(){
+  const obj=buildKnowledgeObj();
+  const json=JSON.stringify(obj,null,2);
+  document.getElementById('export-json').value=json;
+  document.getElementById('exp-words').textContent=Lang.vocab.size;
+  document.getElementById('exp-rules').textContent=grammarLearned.length;
+  document.getElementById('exp-neural').textContent=G.neural.steps;
+  document.getElementById('export-modal').style.display='flex';
+}
+
+function copyExport(){
+  const ta=document.getElementById('export-json');
+  ta.select();
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(ta.value).then(()=>alert('✓ Скопировано! Сохрани как gody_knowledge.json'));
+    } else {
+      document.execCommand('copy');
+      alert('✓ Скопировано!');
+    }
+  }catch(e){alert('Выдели текст вручную и скопируй');}
+}
+
+// Сбросить только данные пользователя (знания GODY остаются)
+function resetUser(){
+  if(!confirm('Сбросить данные пользователя?\nЗнания GODY (словарь, грамматика) сохранятся.\nВоспоминания о тебе и история чата удалятся.'))return;
+  localStorage.removeItem(USER_KEY);
+  G.memories=[];
+  G.conversationCount=0;
+  G.familiarity=0.05;
+  G.emo={distress:.03,interest:.52,contentment:.6,disgust:0,surprise:0};
+  G.ext={anxiety:.05,anger:0,loneliness:.2,hope:.42,frustration:0,love:0,pride:0,nostalgia:0};
+  document.getElementById('msgs').innerHTML='';
+  addSys('[Данные пользователя сброшены. GODY помнит все выученные слова.]');
+  addMsg('gody','привет.');
+}
+
+// ════════════════════════════════════════════════
+// CURRICULUM — загрузка из GitHub
+// ════════════════════════════════════════════════
+async function loadCurriculum(){
+  try{
+    const res=await fetch(CURRICULUM_URL);
+    if(!res.ok)throw new Error('not ok');
+    curriculumData=await res.json();
+    console.log('Curriculum загружен:',curriculumData.levels?.length,'уровней');
+  }catch(e){
+    console.log('Curriculum офлайн — используем встроенный');
+    curriculumData=BUILTIN_CURRICULUM;
+  }
+}
+
+// ════════════════════════════════════════════════
+// ВСТРОЕННЫЙ CURRICULUM (fallback если нет сети)
+// ════════════════════════════════════════════════
+const BUILTIN_CURRICULUM={
+  version:'1.0',
+  levels:[
+    {id:'detsad',name:'🧒 Детский сад',minVocab:0,topics:[
+      {name:'Животные',emoji:'🐾',wiki:'Домашние_животные',
+       words:['кошка','собака','птица','рыба','лошадь','корова','медведь','волк','лиса','заяц','белка','ёж','мышь','кот','пёс','кролик','черепаха','попугай']},
+      {name:'Еда',emoji:'🍎',wiki:'Еда',
+       words:['хлеб','молоко','яйцо','суп','каша','яблоко','банан','морковь','картошка','рис','мясо','сок','чай','соль','сахар','масло','сыр','творог','конфета']},
+      {name:'Семья',emoji:'👨‍👩‍👧',wiki:'Семья',
+       words:['мама','папа','сестра','брат','бабушка','дедушка','тётя','дядя','сын','дочь','семья','ребёнок','дети','муж','жена','родители']},
+      {name:'Тело',emoji:'🫀',wiki:'Тело_человека',
+       words:['голова','рука','нога','глаз','ухо','нос','рот','зуб','волосы','палец','плечо','живот','спина','грудь','шея','лицо','лоб','щека']},
+      {name:'Дом',emoji:'🏠',wiki:'Дом',
+       words:['дом','комната','дверь','окно','стол','стул','кровать','диван','шкаф','кухня','ванна','туалет','пол','стена','потолок','лестница','крыша']},
+      {name:'Природа',emoji:'🌿',wiki:'Природа',
+       words:['дерево','цветок','трава','лист','ветка','корень','гриб','ягода','куст','поле','луг','лес','река','озеро','гора','камень','песок','облако']},
+      {name:'Цвета',emoji:'🌈',wiki:'Цвет',
+       words:['красный','синий','зелёный','жёлтый','белый','чёрный','серый','коричневый','розовый','оранжевый','фиолетовый','голубой','бежевый']},
+    ]},
+    {id:'school1',name:'📚 Школа 1-4 класс',minVocab:150,topics:[
+      {name:'Числа и счёт',emoji:'🔢',wiki:'Натуральное_число',
+       words:['один','два','три','четыре','пять','шесть','семь','восемь','девять','десять','сто','тысяча','ноль','число','цифра','счёт','сумма','разность']},
+      {name:'Время и календарь',emoji:'📅',wiki:'Время',
+       words:['понедельник','вторник','среда','четверг','пятница','суббота','воскресенье','январь','февраль','март','апрель','май','июнь','час','минута','секунда','неделя','месяц','год']},
+      {name:'Школа и учёба',emoji:'🏫',wiki:'Школа',
+       words:['школа','класс','урок','учитель','ученик','доска','тетрадь','ручка','карандаш','книга','оценка','задание','домашнее','перемена','звонок','портфель','парта']},
+      {name:'Природные явления',emoji:'⛈️',wiki:'Погода',
+       words:['дождь','снег','ветер','гром','молния','туман','мороз','жара','радуга','буря','ураган','весна','лето','осень','зима','погода','климат','температура']},
+      {name:'Транспорт',emoji:'🚗',wiki:'Транспорт',
+       words:['машина','автобус','поезд','самолёт','корабль','велосипед','мотоцикл','трамвай','метро','такси','грузовик','ракета','лодка','вертолёт']},
+    ]},
+    {id:'school2',name:'📖 Школа 5-9 класс',minVocab:350,topics:[
+      {name:'Наука и знания',emoji:'🔬',wiki:'Наука',
+       words:['наука','опыт','теория','закон','гипотеза','эксперимент','открытие','исследование','лаборатория','учёный','физика','химия','биология','математика','история']},
+      {name:'Общество и люди',emoji:'🌍',wiki:'Общество',
+       words:['общество','государство','закон','право','свобода','равенство','справедливость','демократия','культура','традиция','язык','народ','нация','гражданин']},
+      {name:'Эмоции и психология',emoji:'🧠',wiki:'Эмоция',
+       words:['эмоция','характер','личность','поведение','привычка','мотивация','воля','цель','успех','неудача','уверенность','тревога','депрессия','счастье','гармония']},
+      {name:'Искусство',emoji:'🎨',wiki:'Искусство',
+       words:['искусство','музыка','живопись','скульптура','поэзия','проза','театр','кино','архитектура','танец','творчество','художник','писатель','композитор']},
+    ]},
+    {id:'advanced',name:'🎓 Продвинутый',minVocab:600,topics:[
+      {name:'Философия',emoji:'💭',wiki:'Философия',
+       words:['философия','мышление','бытие','сознание','истина','познание','категория','диалектика','абсолют','субъект','объект','материя','идея','пространство']},
+      {name:'Технологии',emoji:'💻',wiki:'Технология',
+       words:['технология','программирование','алгоритм','данные','база','сеть','интернет','искусственный','интеллект','нейронный','машинный','цифровой','виртуальный']},
+    ]},
+  ]
+};
+
+// ════════════════════════════════════════════════
+// ЧТЕНИЕ WIKIPEDIA — как ребёнок читает книгу
+// ════════════════════════════════════════════════
+async function readWikiTopic(wikiTitle){
+  try{
+    const url=`https://ru.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(wikiTitle)}`;
+    const res=await fetch(url);
+    if(!res.ok)return null;
+    const d=await res.json();
+    if(!d.extract)return null;
+
+    // Извлечь слова из статьи
+    const words=d.extract.split(/[\s,.!?;:«»"()—–]+/)
+      .map(w=>cl(w))
+      .filter(w=>w.length>3&&w.length<20&&/^[а-яёa-z]+$/.test(w));
+
+    const newWords=words.filter(w=>!Lang.vocab.has(w));
+    // Добавить незнакомые слова в очередь изучения
+    for(const w of [...new Set(newWords)].slice(0,15)){
+      readingQueue.push(w);
+      Lang.addToWondering(w);
+    }
+
+    lastReadTopic={
+      title:d.title,
+      summary:d.extract.slice(0,150)+'...',
+      newWords:newWords.length,
+      ts:Date.now()
+    };
+
+    addSys(`[GODY прочитала: "${d.title}" — нашла ${newWords.length} новых слов]`);
+    return lastReadTopic;
+  }catch(e){return null;}
+}
+
+function getCurrentCurriculumTopic(){
+  if(!curriculumData)return null;
+  const levels=curriculumData.levels||[];
+  // Найти подходящий уровень
+  for(let i=levels.length-1;i>=0;i--){
+    if(Lang.vocab.size>=levels[i].minVocab){
+      curriculumLevel=i;
+      break;
+    }
+  }
+  const level=levels[curriculumLevel];
+  if(!level)return null;
+  const topics=level.topics||[];
+  if(curriculumTopicIdx>=topics.length){
+    // Перейти на следующий уровень
+    if(curriculumLevel<levels.length-1){
+      curriculumLevel++;
+      curriculumTopicIdx=0;
+      addSys(`[GODY перешла на уровень: ${levels[curriculumLevel].name}]`);
+    }
+    return null;
+  }
+  return {level,topic:topics[curriculumTopicIdx]};
+}
 
 function checkPhaseTransition(){
-  if(currentPhase===PHASES.VOCAB && Lang.studyQueue.length===0 && Lang.vocab.size>200){
-    currentPhase=PHASES.GRAMMAR;
-    addSys(`[GODY выучила ${Lang.vocab.size} слов. Начинает изучать грамматику...]`);
+  // Словарь → Чтение (когда базовые слова выучены)
+  if(currentPhase===PHASES.VOCAB && Lang.studyQueue.length===0){
+    currentPhase=PHASES.READING;
+    addSys(`[GODY выучила базу — ${Lang.vocab.size} слов. Начинает читать тексты...]`);
+    saveAll();
   }
+  // Чтение → Грамматика (после прохождения всех уровней curriculum)
+  if(currentPhase===PHASES.READING && curriculumData){
+    const levels=curriculumData.levels||[];
+    const allDone=curriculumLevel>=levels.length-1 &&
+      curriculumTopicIdx>=(levels[curriculumLevel]?.topics?.length||0);
+    if(allDone&&readingQueue.length===0){
+      currentPhase=PHASES.GRAMMAR;
+      addSys(`[GODY прочитала все учебники! Изучает грамматику...]`);
+      saveAll();
+    }
+  }
+  // Грамматика → Морфология
   if(currentPhase===PHASES.GRAMMAR && grammarIndex>=GRAMMAR_COURSE.length){
     currentPhase=PHASES.MORPHOLOGY;
-    addSys(`[GODY освоила грамматику! Теперь формирует слова по правилам.]`);
+    addSys(`[GODY освоила грамматику! Теперь создаёт слова по правилам.]`);
+    saveAll();
   }
 }
 
@@ -1114,6 +1439,57 @@ async function passiveTick(dt){
   ptimer=0;studyProgress=0;
 
   checkPhaseTransition();
+
+  // ── ФАЗА ЧТЕНИЯ ───────────────────────────────
+  if(currentPhase===PHASES.READING){
+    // Берём слова из очереди чтения
+    if(readingQueue.length>0){
+      const word=readingQueue.shift();
+      if(!Lang.vocab.has(word)){
+        const meaning=DICT[word]?.m||null;
+        if(meaning){
+          document.getElementById('cur-word').textContent=word;
+          document.getElementById('cur-src').textContent='из текста';
+          document.getElementById('cur-def').textContent=meaning;
+          Lang.learnWord(word,meaning,'чтение');
+        } else {
+          const wikiMeaning=await fetchWiki(word);
+          if(wikiMeaning){
+            document.getElementById('cur-word').textContent=word;
+            document.getElementById('cur-src').textContent='из текста → wiktionary';
+            document.getElementById('cur-def').textContent=wikiMeaning;
+            Lang.learnWord(word,wikiMeaning,'чтение');
+          }
+        }
+      }
+    } else {
+      // Прочитать следующую тему из curriculum
+      const ct=getCurrentCurriculumTopic();
+      if(ct&&ct.topic.wiki){
+        document.getElementById('cur-word').textContent='📖 '+ct.topic.name;
+        document.getElementById('cur-src').textContent=ct.level.name;
+        document.getElementById('cur-def').textContent=`Читает статью о "${ct.topic.name}"...`;
+        await readWikiTopic(ct.topic.wiki);
+        // Добавить тематические слова напрямую
+        if(ct.topic.words){
+          for(const w of ct.topic.words){
+            if(!Lang.vocab.has(w)&&DICT[w]){
+              Lang.learnWord(w,DICT[w].m,'учебник');
+            } else if(!Lang.vocab.has(w)){
+              readingQueue.push(w);
+            }
+          }
+        }
+        curriculumTopicIdx++;
+        saveAll();
+      } else {
+        // Curriculum кончился → переходим к грамматике
+        currentPhase=PHASES.GRAMMAR;
+      }
+    }
+    renderLearn();
+    return;
+  }
 
   // ── ФАЗА ГРАММАТИКИ ──────────────────────────
   if(currentPhase===PHASES.GRAMMAR){
@@ -1302,8 +1678,24 @@ function renderLearn(){
   document.getElementById('wc2').textContent=Lang.wondering.length;
 
   // Фаза обучения в заголовке
-  const phaseLabels={[PHASES.VOCAB]:'📖 Словарь',[PHASES.GRAMMAR]:'📐 Грамматика',[PHASES.MORPHOLOGY]:'🔤 Словообразование'};
+  const phaseLabels={
+    [PHASES.VOCAB]:'📖 Базовые слова',
+    [PHASES.READING]:'📚 Читает тексты',
+    [PHASES.GRAMMAR]:'📐 Грамматика',
+    [PHASES.MORPHOLOGY]:'🔤 Словообразование'
+  };
   document.getElementById('studying-title').textContent=phaseLabels[currentPhase]||'📖 Учится';
+
+  // Текущий уровень
+  if(curriculumData&&(currentPhase===PHASES.READING||currentPhase===PHASES.VOCAB)){
+    const lvl=curriculumData.levels?.[curriculumLevel];
+    if(lvl){
+      const topics=lvl.topics||[];
+      const pct=Math.round(curriculumTopicIdx/Math.max(topics.length,1)*100);
+      document.getElementById('hdr-sub').textContent=
+        `${fAge(G.age)} · ${lvl.name} · тема ${curriculumTopicIdx}/${topics.length} · ${Lang.vocab.size}сл`;
+    }
+  }
 
   // Прогресс грамматики
   if(currentPhase===PHASES.GRAMMAR){
@@ -1444,9 +1836,22 @@ async function loop(){
 
 // BOOT
 Lang.init();
-renderLearn();
-addMsg('gody','привет.');
-setTimeout(()=>addSys(`[словарь: ${Lang.vocab.size} врождённых · очередь: ${Lang.studyQueue.length} слов · затем → Wiktionary]`),1200);
+
+loadKnowledge().then(src=>{
+  loadUser();
+  renderLearn();
+  loadCurriculum().then(()=>{
+    const lvl=curriculumData?.levels?.[curriculumLevel];
+    const info=src
+      ?`[Загружено: ${src==='bundled'?'предобученная GODY из APK':'сохранение'} · словарь: ${Lang.vocab.size} слов · фаза: ${currentPhase}]`
+      :`[Первый запуск · слов: ${Lang.vocab.size} · уровень: ${lvl?.name||'?'}]`;
+    addSys(info);
+    if(!src)addMsg('gody','привет.');
+    renderLearn();
+  });
+});
+
+setInterval(saveAll,30000);
 last=Date.now();
 requestAnimationFrame(loop);
 </script>
