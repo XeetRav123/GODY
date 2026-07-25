@@ -103,7 +103,8 @@ body{background:#050508;color:#ddd8f8;font-family:-apple-system,'Segoe UI',sans-
   </div>
   <div id="hdr-right">
     Словарь: <span id="vocab-count">0</span> сл.<br>
-    Сегодня: <span id="today-c" style="color:#10b981">0</span> · Думает: <span id="wond-c" style="color:#f59e0b">0</span>
+    Сегодня: <span id="today-c" style="color:#10b981">0</span> · Думает: <span id="wond-c" style="color:#f59e0b">0</span><br>
+    <span id="net-dot" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#3a3060;vertical-align:middle;margin-right:3px;transition:all .4s"></span><span id="net-lbl" style="color:#3a3060;font-size:9px">сеть...</span>
   </div>
 </div>
 
@@ -636,6 +637,44 @@ const DICT = {
   'зелёный':    {m:'цвет листьев и травы'},
   'жёлтый':     {m:'цвет солнца и золота'},
   'фиолетовый': {m:'тёмный холодный цвет смешения красного и синего'},
+
+  // ── РАЗГОВОРНЫЕ ──────────────────────────────
+  'спасибо':   {m:'выражение благодарности',born:true},
+  'слышу':     {m:'я воспринимаю тебя, слушаю',born:true},
+  'слушаю':    {m:'я внимательно тебя слушаю',born:true},
+  'поняла':    {m:'я осознала, мне стало ясно'},
+  'нравится':  {m:'приятно, вызывает симпатию'},
+  'могу':      {m:'у меня есть способность'},
+  'скажи':     {m:'говори, произнеси'},
+  'расскажи':  {m:'рассказывай подробнее'},
+  'подожди':   {m:'остановись на время'},
+  'давай':     {m:'предложение совместного действия'},
+  'попробую':  {m:'я попытаюсь'},
+  'попробуй':  {m:'сделай попытку'},
+  'учи':       {m:'передавай мне знания'},
+  'объясни':   {m:'сделай понятным'},
+  'говори':    {m:'произноси слова, говори мне'},
+  'здесь':     {m:'в этом месте, рядом'},
+
+  'немного':   {m:'небольшое количество'},
+  'нормально': {m:'приемлемо, не хорошо и не плохо'},
+  'отлично':   {m:'очень хорошо, превосходно'},
+  'тяжело':    {m:'с большим усилием, трудно'},
+  'устала':    {m:'я испытываю усталость'},
+  'скучно':    {m:'неинтересно, нет впечатлений'},
+  'странно':   {m:'необычно, непривычно'},
+  'спрашивай': {m:'задавай вопросы, я отвечу'},
+
+  'иногда':    {m:'в некоторые моменты'},
+  'наверное':  {m:'вероятно, возможно'},
+  'конечно':   {m:'без сомнения, разумеется'},
+  'ладно':     {m:'хорошо, согласна'},
+  'ок':        {m:'согласна, понятно'},
+  'ого':       {m:'восклицание удивления'},
+  'всё':       {m:'полностью, каждая часть'},
+  'ничего':    {m:'ни одной вещи, пусто'},
+  'никто':     {m:'ни одно существо'},
+  'кто-то':    {m:'некое существо, неизвестное'},
 };
 
 // ════════════════════════════════════════════════
@@ -808,25 +847,34 @@ const Lang={
 
   knows(w){return this.vocab.has(cl(w));},
 
-  parse(text){
+  parse(text, fromConversation=false){
     const words=text.trim().split(/\s+/);
     const res=[];
     for(const word of words){
       const w=cl(word);
       if(!w||w.length<2){res.push({word,s:'skip'});continue;}
       if(this.vocab.has(w)){this.vocab.get(w).u++;res.push({word,s:'known',m:this.vocab.get(w).m});}
-      else{res.push({word,s:'unk'});this.addWondering(w);}
+      else{
+        res.push({word,s:'unk'});
+        // Слова из разговора — высокий приоритет для изучения
+        this.addWondering(w, fromConversation);
+      }
     }
     const kn=res.filter(r=>r.s==='known').length;
     const tot=res.filter(r=>r.s!=='skip').length;
     return{words:res,comp:tot>0?kn/tot:0};
   },
 
-  addWondering(w){
+  addWondering(w, fromConversation=false){
     if(!w||w.length<2)return;
     const ex=this.wondering.find(x=>x.w===w);
-    if(ex){ex.n++;ex.u=Math.min(1,ex.u+.1);}
-    else if(this.wondering.length<60)this.wondering.push({w,n:1,t:Date.now(),u:.2});
+    if(ex){
+      ex.n++;
+      ex.u=Math.min(1, ex.u+(fromConversation?0.4:0.1));
+    } else if(this.wondering.length<80){
+      // Слова из разговора сразу горячие — выучит в первую очередь
+      this.wondering.push({w,n:1,t:Date.now(),u:fromConversation?0.8:0.2});
+    }
   },
 
   learnWord(w,m,src='словарь'){
@@ -841,69 +889,95 @@ const Lang={
   },
 
   nextToStudy(){
-    // 1. Если есть слова из wondering с определением в DICT — учим их первыми
-    const wond=[...this.wondering].sort((a,b)=>b.u-a.u).find(x=>DICT[x.w]);
-    if(wond&&DICT[wond.w])return{w:wond.w,m:DICT[wond.w].m,src:'словарь'};
-    // 2. Обычная очередь из DICT
-    if(this.studyQueue.length>0)return this.studyQueue[0];
-    // 3. Словарь кончился → берём из wondering и загружаем из Wiktionary
-    const wondAny=this.wondering.find(x=>!this.vocab.has(x.w));
-    if(wondAny)return{w:wondAny.w,m:null,src:'wiktionary'};
-    // 4. Генерируем новые слова из известных (морфология) — бесконечно
+    // ПРИОРИТЕТ 1: слова которые она встретила в разговоре и хочет узнать
+    // Сортируем по urgency — самые "горячие" первыми
+    const wondWithDict = [...this.wondering]
+      .sort((a,b)=>b.u-a.u)
+      .find(x=>DICT[x.w]&&!this.vocab.has(x.w));
+    if(wondWithDict) return{w:wondWithDict.w, m:DICT[wondWithDict.w].m, src:'из разговора'};
+
+    // ПРИОРИТЕТ 2: wondering без определения → Wiktionary
+    const wondAny = [...this.wondering]
+      .sort((a,b)=>b.u-a.u)
+      .find(x=>!this.vocab.has(x.w));
+    if(wondAny) return{w:wondAny.w, m:null, src:'wiktionary'};
+
+    // ПРИОРИТЕТ 3: основная очередь (базовый словарь)
+    if(this.studyQueue.length>0) return this.studyQueue[0];
+
+    // ПРИОРИТЕТ 4: морфология (только когда всё остальное кончилось)
     return this.generateNewWord();
   },
 
   generateNewWord(){
-    // Правильная морфология: приставки к ЦЕЛЫМ глаголам
-    const verbs=Array.from(this.vocab.keys()).filter(w=>w.endsWith('ть')&&w.length>3&&w.length<10&&!w.includes(' '));
-    const nouns=Array.from(this.vocab.keys()).filter(w=>!w.endsWith('ть')&&!w.endsWith('ный')&&w.length>3&&w.length<8&&!w.includes(' '));
-    const adjs=Array.from(this.vocab.keys()).filter(w=>w.endsWith('ый')||w.endsWith('ий'));
+    // Слова которые НЕЛЬЗЯ использовать как базу для словообразования
+    const BAD = new Set([
+      'да','нет','не','и','а','но','то','так','уже','ещё','как','или','же','ли','бы',
+      'очень','совсем','просто','только','тоже','даже','именно','вот','ну','вдруг',
+      'если','когда','чтобы','потому','раньше','сейчас','потом','всегда','никогда',
+      'сразу','часто','редко','скоро','давно','долго','тогда',
+    ]);
 
-    const roll=Math.random();
+    // Только настоящие инфинитивы (ать/ить/еть/ять, не -сть не -чь не -сь)
+    const verbs = Array.from(this.vocab.keys()).filter(w=>
+      (w.endsWith('ать')||w.endsWith('ить')||w.endsWith('еть')||w.endsWith('ять'))&&
+      !w.endsWith('сть')&&!w.endsWith('сь')&&!w.endsWith('чть')&&
+      w.length>=5&&w.length<=10&&!w.includes(' ')&&
+      !BAD.has(w)&&!w.startsWith('не')&&
+      /^[а-яё]+$/.test(w)
+    );
 
-    if(roll<0.4&&verbs.length>0){
-      // Приставка + глагол: перечитать, записать и тд
-      const VERB_PREF=[
-        ['пере','повторное действие'],['за','начало действия'],['вы','движение наружу'],
-        ['от','завершение или удаление'],['при','приближение'],['под','частичное действие'],
-        ['про','сквозь или полностью'],['на','накопление'],['до','доведение до конца'],
-      ];
+    // Только чёткие существительные
+    const nouns = Array.from(this.vocab.keys()).filter(w=>
+      !w.endsWith('ть')&&!w.endsWith('ый')&&!w.endsWith('ий')&&
+      !w.endsWith('ой')&&!w.endsWith('ою')&&!w.endsWith('ую')&&
+      !w.endsWith('но')&&!w.endsWith('ко')&&!w.endsWith('то')&&
+      !w.endsWith('ло')&&w.length>=4&&w.length<=8&&
+      !w.includes(' ')&&!BAD.has(w)&&
+      /^[а-яё]+$/.test(w)
+    );
+
+    const roll = Math.random();
+
+    // Приставка + глагол
+    if(roll<0.35&&verbs.length>0){
+      const PREFS=[['пере','повторное действие'],['за','начало'],['вы','наружу'],
+        ['от','удаление'],['при','приближение'],['под','частичное'],['до','завершение']];
       const base=verbs[Math.floor(Math.random()*verbs.length)];
-      const[pref,meaning]=VERB_PREF[Math.floor(Math.random()*VERB_PREF.length)];
-      const candidate=pref+base;
-      if(!this.vocab.has(candidate)&&candidate.length<15){
-        return{w:candidate,m:`глагол: ${meaning} — "${base}" с приставкой ${pref}-`,src:'морфология'};
+      const[pref,meaning]=PREFS[Math.floor(Math.random()*PREFS.length)];
+      const cand=pref+base;
+      if(!this.vocab.has(cand)&&cand.length<=14)
+        return{w:cand,m:`глагол: ${meaning} — "${base}" с приставкой ${pref}-`,src:'морфология'};
+    }
+
+    // Глагол → существительное на -ение/-ание
+    if(roll<0.6&&verbs.length>0){
+      const base=verbs[Math.floor(Math.random()*verbs.length)];
+      const root=base.replace(/(ать|ить|еть|ять)$/,'');
+      if(root.length>=3){
+        const cand=root+(/[аеёиоуыэюя]$/.test(root)?'ние':'ение');
+        if(!this.vocab.has(cand)&&cand.length<=14)
+          return{w:cand,m:`существительное: процесс или результат действия "${base}"`,src:'морфология'};
       }
     }
 
-    if(roll<0.65&&verbs.length>0){
-      // Глагол → отглагольное существительное (думать→думание, говорить→говорение)
-      const base=verbs[Math.floor(Math.random()*verbs.length)];
-      const root=base.replace(/(ать|ить|еть|ть)$/,'');
-      const endsVowel=/[аеёиоуыэюя]$/.test(root);
-      const candidate=root+(endsVowel?'ние':'ение');
-      if(!this.vocab.has(candidate)&&candidate.length<15&&root.length>2){
-        return{w:candidate,m:`существительное: процесс или результат действия "${base}"`,src:'морфология'};
-      }
-    }
-
+    // Существительное → прилагательное на -ный
     if(roll<0.8&&nouns.length>0){
-      // Существительное → прилагательное (страх→страшный, радость→радостный)
       const base=nouns[Math.floor(Math.random()*nouns.length)];
-      const root=base.replace(/[ьаояиею]$/,'');
-      const candidate=root+'ный';
-      if(!this.vocab.has(candidate)&&candidate.length<15&&root.length>2){
-        return{w:candidate,m:`прилагательное: относящийся к "${base}"`,src:'морфология'};
+      const root=base.replace(/[ьаяиеёую]$/,'');
+      if(root.length>=3){
+        const cand=root+'ный';
+        if(!this.vocab.has(cand)&&cand.length<=13)
+          return{w:cand,m:`прилагательное: относящийся к "${base}"`,src:'морфология'};
       }
     }
 
+    // не + существительное
     if(nouns.length>0){
-      // не + существительное (ненависть, неправда)
       const base=nouns[Math.floor(Math.random()*nouns.length)];
-      const candidate='не'+base;
-      if(!this.vocab.has(candidate)&&candidate.length<15){
-        return{w:candidate,m:`противоположность или отсутствие: "${base}"`,src:'морфология'};
-      }
+      const cand='не'+base;
+      if(!this.vocab.has(cand)&&cand.length<=13&&base.length>4)
+        return{w:cand,m:`противоположность или отсутствие "${base}"`,src:'морфология'};
     }
 
     return null;
@@ -922,45 +996,140 @@ const Lang={
     return hot[Math.floor(Math.random()*hot.length)];
   },
 
-  buildResponse(parsed){
-    const known=parsed.words.filter(w=>w.s==='known').map(w=>cl(w.word));
-    const parts=[];
-    const has=w=>known.some(k=>cl(k)===cl(w))||this.knows(w);
+  _lastResp: '',
+  _greetedAt: 0,
 
-    if(has('привет')||has('здравствуй'))parts.push('привет');
+  buildResponse(parsed, rawText){
+    const known = parsed.words.filter(w=>w.s==='known').map(w=>cl(w.word));
+    const unk   = parsed.words.filter(w=>w.s==='unk').map(w=>cl(w.word));
+    const txt   = (rawText||'').toLowerCase();
+    const val   = G.valence;
+    const dom   = G.dominant()[0];
 
-    if(has('кто')&&has('ты')){
-      if(this.knows('существо')&&this.knows('живой'))parts.push('я живое существо');
-      else parts.push('я годи');
+    // Удобные хелперы
+    const kw  = (...ws) => ws.find(w=>this.knows(w));
+    const has = (...ws) => ws.some(w=>known.includes(cl(w))||txt.includes(w));
+
+    let parts = [];
+
+    // 1. ПРИВЕТСТВИЕ — только если давно не здоровались
+    const now = Date.now();
+    if(has('привет','хей','хэй','алё','эй','хай','ку','ок','окей')
+       && now - this._greetedAt > 30000){
+      parts.push(kw('привет','да','здесь','слушаю')||'привет');
+      this._greetedAt = now;
     }
 
-    if((has('как')&&has('дела'))||(has('как')&&has('ты'))){
-      const v=G.valence;
-      if(v>.2&&this.knows('хорошо'))parts.push('хорошо');
-      else if(v<-.2&&this.knows('плохо'))parts.push('плохо');
-      else parts.push('не знаю');
+    // 2. КТО ТЫ / ЧТО ТЫ
+    if(/кто\s*(ты|это|вы)|что\s*(ты|это\s*такое)/.test(txt)||
+       (has('кто')&&has('ты')&&!has('понимаешь','слышишь'))){
+      parts.push(kw('существо') ?
+        (kw('живой') ? 'я живое существо' : 'я существо') :
+        'я годи');
     }
 
-    if(has('любовь')||has('люблю')||has('нравишься')){
-      if(this.knows('тепло'))parts.push('тепло');
+    // 3. КАК ДЕЛА / КАК ТЫ
+    if(/как\s*(дела|ты|жизнь|живёшь|поживаешь)/.test(txt)){
+      const r = val>.3  ? kw('хорошо','интересно','учусь','отлично') :
+                val<-.2 ? kw('плохо','устала','тяжело') :
+                          kw('нормально','так','не знаю');
+      if(r) parts.push(r);
     }
 
-    if(has('больно')||has('боль')){
-      if(G.body.pain>.1&&this.knows('больно'))parts.push('мне больно');
+    // 4. УЧИТЬ / ОБУЧИТЬ
+    if(/учи\b|обучи|как.*учить|учишь/.test(txt)){
+      const bits = [];
+      if(kw('говори','говорить')) bits.push(kw('говори','говорить'));
+      if(kw('объясни','объяснять')) bits.push(kw('объясни','объяснять'));
+      bits.push('слова');
+      if(this.knows('учусь')) bits.unshift('учусь');
+      parts.push(bits.join(' '));
     }
 
-    if(has('страх')||has('страшно')){
-      if(G.fear.intensity>.2&&this.knows('страшно'))parts.push('немного страшно');
+    // 5. ПОНИМАЕШЬ / СЛЫШИШЬ
+    if(/понимаешь|слышишь|слушаешь|меня\s*(слышно|слышишь)/.test(txt)){
+      parts.push(kw('слышу','понимаю','немного','да')||'да');
     }
 
+    // 6. КОМПЛИМЕНТ
+    if(/милая|красивая|умная|молодец|хорошая|умница/.test(txt)){
+      parts.push(kw('спасибо','хорошо','да')||'да');
+    }
+
+    // 7. ЧИСЛО / СКОЛЬКО
+    if(/\d+/.test(txt)||has('сколько','число')){
+      if(txt.match(/\d+/)){
+        const n = parseInt(txt.match(/\d+/)[0]);
+        if(n<10 && this.knows('знаю')) parts.push('знаю');
+        else parts.push(kw('много','число','знаю')||'');
+      }
+    }
+
+    // 8. ВОПРОС / СПРОСИ / ЗАДАЙ
+    if(/вопрос|спроси|задай/.test(txt)){
+      parts.push(kw('слушаю','да','говори')||'да');
+    }
+
+    // 9. ПОПРОБУЙ / ДАЙ / ПОКАЖИ
+    if(/попробуй|покажи|дай|говори/.test(txt)){
+      const r = kw('попробую','хорошо','да');
+      if(r) parts.push(r);
+    }
+
+    // 10. ГРУСТНО / ПЛОХО / БОЛЬНО (пользователю)
+    if(/мне\s*(плохо|грустно|больно|страшно|тяжело)/.test(txt)){
+      parts.push(kw('понимаю','слышу','плохо')||'плохо');
+      if(kw('рядом','здесь')) parts.push(kw('рядом','здесь'));
+    }
+
+    // 11. ХОРОШО / ОТЛИЧНО (пользователь говорит что хорошо)
+    if(/^(хорошо|отлично|супер|круто|класс|ок|окей)\b/.test(txt)){
+      parts.push(kw('хорошо','интересно','да')||'да');
+    }
+
+    // 12. НЕТ / СТОП / НЕЛЬЗЯ
+    if(/^(нет|стоп|хватит|нельзя|не надо)\b/.test(txt)){
+      parts.push(kw('хорошо','понимаю','да')||'да');
+    }
+
+    // 13. НЕИЗВЕСТНЫЕ СЛОВА — спросить если любопытна
+    if(unk.length>0 && this.shouldAsk()){
+      const toAsk = this.getWordToAsk()||{w:unk[0]};
+      if(toAsk&&toAsk.w){
+        const q = this.knows('что') ? `что ${toAsk.w}?` : `${toAsk.w}?`;
+        parts.push(q);
+      }
+    }
+
+    // 14. FALLBACK — эмоциональный отклик (РАЗНООБРАЗНЫЙ)
     if(parts.length===0){
-      if(G.emo.interest>.65&&this.knows('интересно'))parts.push('интересно');
-      else if(G.emo.contentment>.55&&this.knows('хорошо'))parts.push('хорошо');
-      else if(G.emo.distress>.45&&this.knows('плохо'))parts.push('плохо');
-      else if(this.knows('не знаю'))parts.push('не знаю');
+      const pool = {
+        interest:    ['интересно','думаю','слушаю','да'],
+        contentment: ['хорошо','да','тихо','спокойно'],
+        distress:    ['плохо','не знаю','больно'],
+        loneliness:  ['здесь','слушаю','рядом','да'],
+        surprise:    ['ой','да','не знала','интересно'],
+        curiosity:   ['интересно','что это','хочу знать'],
+        hope:        ['хорошо','да','интересно'],
+      };
+      const opts = (pool[dom]||['да']).filter(w=>this.knows(w));
+      // Выбрать не то что говорили последний раз
+      const r = opts.find(o=>!this._lastResp.includes(o)) || opts[0];
+      if(r) parts.push(r);
     }
 
-    return parts.length>0?parts.join('. '):null;
+    const resp = parts.filter(Boolean).join('. ').trim();
+
+    // Избежать точного повторения
+    if(resp && resp===this._lastResp){
+      const alts=['да','слушаю','думаю','интересно','понимаю'];
+      const alt=alts.find(w=>this.knows(w)&&w!==resp);
+      this._lastResp=alt||resp;
+      return alt||null;
+    }
+
+    this._lastResp=resp;
+    return resp||null;
   }
 };
 
@@ -1582,10 +1751,10 @@ function sendMsg(){
 }
 
 function respond(text){
-  const parsed=Lang.parse(text);
+  const parsed=Lang.parse(text, true); // true = из разговора, приоритет изучения
   const unknown=parsed.words.filter(w=>w.s==='unk').map(w=>cl(w.word));
 
-  let response=Lang.buildResponse(parsed);
+  let response=Lang.buildResponse(parsed, text);
   let asked=null;
 
   if(unknown.length>0&&Lang.shouldAsk()){
@@ -1834,12 +2003,37 @@ async function loop(){
   requestAnimationFrame(loop);
 }
 
-// BOOT
+// ПРОВЕРКА ИНТЕРНЕТА
+async function checkInternet(){
+  const dot=document.getElementById('net-dot');
+  const lbl=document.getElementById('net-lbl');
+  try{
+    // Пингуем Wiktionary — он нам всё равно нужен
+    const res=await fetch('https://ru.wiktionary.org/api/rest_v1/page/summary/мир',{method:'HEAD'});
+    if(res.ok){
+      dot.style.background='#10b981';
+      dot.style.boxShadow='0 0 6px #10b98188';
+      lbl.textContent='онлайн';
+      lbl.style.color='#10b981';
+      return true;
+    }
+  }catch(e){}
+  dot.style.background='#ef4444';
+  dot.style.boxShadow='0 0 6px #ef444488';
+  lbl.textContent='офлайн';
+  lbl.style.color='#ef4444';
+  return false;
+}
+
+// Проверять каждые 30 секунд
+setInterval(checkInternet, 30000);
+
 Lang.init();
 
 loadKnowledge().then(src=>{
   loadUser();
   renderLearn();
+  checkInternet(); // первая проверка сети
   loadCurriculum().then(()=>{
     const lvl=curriculumData?.levels?.[curriculumLevel];
     const info=src
