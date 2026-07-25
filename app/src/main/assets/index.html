@@ -862,6 +862,11 @@ const Lang={
     }
     const kn=res.filter(r=>r.s==='known').length;
     const tot=res.filter(r=>r.s!=='skip').length;
+    // Усиливаем ко-появление известных слов в предложении
+    if(fromConversation){
+      const knownWords=res.filter(r=>r.s==='known').map(r=>cl(r.word));
+      this.strengthenCoOccurrence(knownWords);
+    }
     return{words:res,comp:tot>0?kn/tot:0};
   },
 
@@ -879,7 +884,18 @@ const Lang={
 
   learnWord(w,m,src='словарь'){
     if(this.vocab.has(w))return false;
-    this.vocab.set(w,{m,t:Date.now(),u:0,src});
+    // Создаём запись с семантической структурой
+    this.vocab.set(w,{
+      m, t:Date.now(), u:0, src,
+      understanding: 0,    // 0-1 насколько понимает
+      knownParts: [],      // известные слова из определения
+      unknownParts: [],    // неизвестные слова из определения
+      assoc: {},           // ассоциативные связи: слово→сила
+    });
+    // Анализируем определение и строим семантические связи
+    this.analyzeDefinition(w, m);
+    // Обновляем понимание слов которые ждали этого слова
+    this.updateRelatedUnderstanding(w);
     this.todayLearned++;
     this.recentlyLearned.unshift({w,m,src,t:Date.now()});
     if(this.recentlyLearned.length>30)this.recentlyLearned.pop();
@@ -887,6 +903,97 @@ const Lang={
     this.save();
     return true;
   },
+
+  // Анализировать определение: что знает, что нет, какие связи строить
+  analyzeDefinition(word, definition){
+    if(!definition||!this.vocab.has(word))return;
+    const entry=this.vocab.get(word);
+
+    // Разбить определение на слова
+    const defWords=[...new Set(
+      definition.split(/[\s,.!?;:()"«»—–\-]+/)
+        .map(w=>cl(w))
+        .filter(w=>w.length>2&&w!==word&&!/^\d+$/.test(w))
+    )];
+
+    const known=defWords.filter(w=>this.vocab.has(w));
+    const unknown=defWords.filter(w=>!this.vocab.has(w)&&w.length>3);
+
+    // Уровень понимания = доля известных слов в определении
+    const total=defWords.length;
+    entry.understanding=total>0?Math.min(1,known.length/total):0.5;
+    entry.knownParts=[...known].slice(0,6);
+    entry.unknownParts=[...unknown].slice(0,6);
+
+    // Строим ассоциативные связи с известными словами
+    for(const kw of known){
+      // Связь: новое слово → известное (сила пропорциональна позиции в определении)
+      entry.assoc[kw]=Math.min(1,(entry.assoc[kw]||0)+0.25);
+      // Обратная связь: известное → новое
+      const kwEntry=this.vocab.get(kw);
+      if(kwEntry){
+        if(!kwEntry.assoc)kwEntry.assoc={};
+        kwEntry.assoc[word]=Math.min(1,(kwEntry.assoc[word]||0)+0.15);
+      }
+    }
+
+    // Неизвестные слова из определения → в wondering (но низкий приоритет)
+    for(const uw of unknown.slice(0,3)){
+      this.addWondering(uw,false);
+    }
+  },
+
+  // Когда выучивается слово W — обновить понимание всех слов которые его ждали
+  updateRelatedUnderstanding(newWord){
+    for(const[w,entry]of this.vocab.entries()){
+      if(!entry.unknownParts||!entry.unknownParts.includes(newWord))continue;
+      // Перенести из unknown в known
+      entry.unknownParts=entry.unknownParts.filter(x=>x!==newWord);
+      if(!entry.knownParts)entry.knownParts=[];
+      if(!entry.knownParts.includes(newWord))entry.knownParts.push(newWord);
+      // Пересчитать понимание
+      const total=entry.knownParts.length+entry.unknownParts.length;
+      if(total>0)entry.understanding=Math.min(1,entry.knownParts.length/total);
+      // Усилить ассоциацию
+      if(!entry.assoc)entry.assoc={};
+      entry.assoc[newWord]=Math.min(1,(entry.assoc[newWord]||0)+0.3);
+    }
+  },
+
+  // Усилить ко-появление: слова в одном предложении связываются
+  strengthenCoOccurrence(knownWords){
+    if(knownWords.length<2)return;
+    const sample=knownWords.slice(0,6); // не больше 6 слов за раз
+    for(let i=0;i<sample.length;i++){
+      for(let j=i+1;j<sample.length;j++){
+        const a=this.vocab.get(sample[i]);
+        const b=this.vocab.get(sample[j]);
+        if(a){if(!a.assoc)a.assoc={};a.assoc[sample[j]]=Math.min(1,(a.assoc[sample[j]]||0)+0.04);}
+        if(b){if(!b.assoc)b.assoc={};b.assoc[sample[i]]=Math.min(1,(b.assoc[sample[i]]||0)+0.04);}
+      }
+    }
+  },
+
+  // Получить топ ассоциаций для слова
+  getAssociations(word,topN=5){
+    const entry=this.vocab.get(word);
+    if(!entry||!entry.assoc)return[];
+    return Object.entries(entry.assoc)
+      .sort((a,b)=>b[1]-a[1])
+      .slice(0,topN)
+      .map(([w,s])=>({word:w,strength:+s.toFixed(2)}));
+  },
+
+  // Общий уровень понимания всего словаря
+  overallUnderstanding(){
+    let sum=0,count=0;
+    for(const e of this.vocab.values()){
+      if(e.understanding!==undefined){sum+=e.understanding;count++;}
+    }
+    return count>0?sum/count:0;
+  },
+
+
 
   nextToStudy(){
     // ПРИОРИТЕТ 1: слова которые она встретила в разговоре и хочет узнать
@@ -1713,7 +1820,27 @@ async function passiveTick(dt){
 
   document.getElementById('cur-word').textContent=next.w;
   document.getElementById('cur-src').textContent=src;
-  document.getElementById('cur-def').textContent=meaning;
+
+  // Показать семантический анализ
+  const entry=Lang.vocab.get(next.w);
+  if(entry){
+    const pct=Math.round((entry.understanding||0)*100);
+    const assocs=Lang.getAssociations(next.w,4);
+    let detail=meaning||entry.m||'';
+    if(entry.knownParts?.length){
+      detail+=`\n✓ знает: ${entry.knownParts.slice(0,4).join(', ')}`;
+    }
+    if(entry.unknownParts?.length){
+      detail+=`\n? изучит: ${entry.unknownParts.slice(0,3).join(', ')}`;
+    }
+    if(assocs.length){
+      detail+=`\n🔗 ${assocs.map(a=>`${a.word}(${a.strength})`).join(' ')}`;
+    }
+    document.getElementById('cur-def').textContent=detail;
+    document.getElementById('cur-src').textContent=`${src} · понимание: ${pct}%`;
+  } else {
+    document.getElementById('cur-def').textContent=meaning||'';
+  }
 
   const learned=Lang.learnWord(next.w,meaning,src);
   if(learned){
@@ -2007,21 +2134,37 @@ async function loop(){
 async function checkInternet(){
   const dot=document.getElementById('net-dot');
   const lbl=document.getElementById('net-lbl');
-  try{
-    // Пингуем Wiktionary — он нам всё равно нужен
-    const res=await fetch('https://ru.wiktionary.org/api/rest_v1/page/summary/мир',{method:'HEAD'});
-    if(res.ok){
-      dot.style.background='#10b981';
-      dot.style.boxShadow='0 0 6px #10b98188';
-      lbl.textContent='онлайн';
-      lbl.style.color='#10b981';
-      return true;
+  dot.style.background='#f59e0b';
+  lbl.textContent='проверка...';lbl.style.color='#f59e0b';
+
+  // Несколько URL для надёжности — пробуем по очереди
+  const URLS=[
+    'https://clients3.google.com/generate_204',  // Google connectivity check (возвращает 204)
+    'https://www.gstatic.com/generate_204',       // Google fallback
+    'https://ru.wiktionary.org/api/rest_v1/page/summary/%D0%BC%D0%B8%D1%80', // мир (encoded)
+  ];
+
+  for(const url of URLS){
+    try{
+      const ctrl=new AbortController();
+      const tid=setTimeout(()=>ctrl.abort(),5000); // таймаут 5 сек
+      const res=await fetch(url,{method:'HEAD',signal:ctrl.signal,cache:'no-store'});
+      clearTimeout(tid);
+      if(res.ok||res.status===204||res.status===200){
+        dot.style.background='#10b981';
+        dot.style.boxShadow='0 0 5px #10b98188';
+        lbl.textContent='онлайн';lbl.style.color='#10b981';
+        return true;
+      }
+    }catch(e){
+      // Следующий URL
+      continue;
     }
-  }catch(e){}
+  }
+
   dot.style.background='#ef4444';
-  dot.style.boxShadow='0 0 6px #ef444488';
-  lbl.textContent='офлайн';
-  lbl.style.color='#ef4444';
+  dot.style.boxShadow='0 0 5px #ef444488';
+  lbl.textContent='офлайн';lbl.style.color='#ef4444';
   return false;
 }
 
