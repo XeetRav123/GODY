@@ -14,6 +14,10 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
+import android.content.res.AssetFileDescriptor;
+
+import java.io.InputStream;
+
 public class MainActivity extends Activity {
 
     private static final String TAG = "GODY";
@@ -38,7 +42,10 @@ public class MainActivity extends Activity {
 
         webView = findViewById(R.id.webview);
 
-        // JavaScript interface
+        // ==========================================
+        // JavaScript Interface
+        // ==========================================
+
         webView.addJavascriptInterface(new Object() {
 
             @JavascriptInterface
@@ -67,31 +74,172 @@ public class MainActivity extends Activity {
                 }
             }
 
+            // ==========================================
+            // Получить размер файла
+            // ==========================================
+
+            @JavascriptInterface
+            public int getAssetSize(String filename) {
+                try {
+                    AssetFileDescriptor fd =
+                            getAssets().openFd(filename);
+
+                    long length = fd.getLength();
+
+                    fd.close();
+
+                    if (length > Integer.MAX_VALUE) {
+                        return -1;
+                    }
+
+                    return (int) length;
+
+                } catch (Exception e) {
+                    Log.e(TAG, "getAssetSize error: " + filename, e);
+                    return -1;
+                }
+            }
+
+            // ==========================================
+            // Читать файл частями
+            // ==========================================
+
+            @JavascriptInterface
+            public String readAssetChunk(
+                    String filename,
+                    int offset,
+                    int length
+            ) {
+                try {
+
+                    if (offset < 0) {
+                        return "";
+                    }
+
+                    if (length <= 0) {
+                        return "";
+                    }
+
+                    // Максимальный размер одного блока:
+                    // 256 KB
+                    int chunkSize = Math.min(
+                            length,
+                            262144
+                    );
+
+                    InputStream is =
+                            getAssets().open(filename);
+
+                    long skipped = 0;
+
+                    while (skipped < offset) {
+                        long result =
+                                is.skip(offset - skipped);
+
+                        if (result <= 0) {
+                            break;
+                        }
+
+                        skipped += result;
+                    }
+
+                    if (skipped < offset) {
+                        is.close();
+                        return "";
+                    }
+
+                    byte[] buf =
+                            new byte[chunkSize];
+
+                    int totalRead = 0;
+
+                    while (totalRead < chunkSize) {
+
+                        int read = is.read(
+                                buf,
+                                totalRead,
+                                chunkSize - totalRead
+                        );
+
+                        if (read == -1) {
+                            break;
+                        }
+
+                        if (read == 0) {
+                            break;
+                        }
+
+                        totalRead += read;
+                    }
+
+                    is.close();
+
+                    if (totalRead <= 0) {
+                        return "";
+                    }
+
+                    return android.util.Base64.encodeToString(
+                            buf,
+                            0,
+                            totalRead,
+                            android.util.Base64.NO_WRAP
+                    );
+
+                } catch (Exception e) {
+
+                    Log.e(
+                            TAG,
+                            "readAssetChunk error: "
+                                    + filename
+                                    + " offset="
+                                    + offset,
+                            e
+                    );
+
+                    return "";
+                }
+            }
+
         }, "Android");
 
-        WebSettings settings = webView.getSettings();
+        // ==========================================
+        // WebView Settings
+        // ==========================================
+
+        WebSettings settings =
+                webView.getSettings();
 
         settings.setJavaScriptEnabled(true);
+
         settings.setDomStorageEnabled(true);
 
         settings.setAllowFileAccess(true);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+        if (Build.VERSION.SDK_INT >=
+                Build.VERSION_CODES.JELLY_BEAN) {
+
             settings.setAllowFileAccessFromFileURLs(true);
+
             settings.setAllowUniversalAccessFromFileURLs(true);
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+        if (Build.VERSION.SDK_INT >=
+                Build.VERSION_CODES.LOLLIPOP) {
+
             settings.setMixedContentMode(
                     WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
             );
         }
 
         settings.setBuiltInZoomControls(false);
+
         settings.setDisplayZoomControls(false);
+
         settings.setSupportZoom(false);
 
-        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        settings.setCacheMode(
+                WebSettings.LOAD_NO_CACHE
+        );
 
         settings.setUserAgentString(
                 "Mozilla/5.0 (Linux; Android "
@@ -101,72 +249,95 @@ public class MainActivity extends Activity {
                         + "Chrome/120.0.0.0 Mobile Safari/537.36"
         );
 
-        webView.setWebChromeClient(new WebChromeClient() {
+        // ==========================================
+        // WebChromeClient
+        // ==========================================
 
-            @Override
-            public boolean onConsoleMessage(ConsoleMessage msg) {
+        webView.setWebChromeClient(
+                new WebChromeClient() {
 
-                Log.d(
-                        TAG,
-                        "[JS "
-                                + msg.messageLevel()
-                                + "] "
-                                + msg.message()
-                                + " (line "
-                                + msg.lineNumber()
-                                + ")"
-                );
+                    @Override
+                    public boolean onConsoleMessage(
+                            ConsoleMessage msg
+                    ) {
 
-                return true;
-            }
+                        Log.d(
+                                TAG,
+                                "[JS "
+                                        + msg.messageLevel()
+                                        + "] "
+                                        + msg.message()
+                                        + " (line "
+                                        + msg.lineNumber()
+                                        + ")"
+                        );
 
-            @Override
-            public void onPermissionRequest(
-                    final PermissionRequest request
-            ) {
-                runOnUiThread(() -> {
-                    if (Build.VERSION.SDK_INT >=
-                            Build.VERSION_CODES.LOLLIPOP) {
+                        return true;
+                    }
 
-                        request.grant(
-                                request.getResources()
+                    @Override
+                    public void onPermissionRequest(
+                            final PermissionRequest request
+                    ) {
+
+                        runOnUiThread(() -> {
+
+                            if (Build.VERSION.SDK_INT >=
+                                    Build.VERSION_CODES.LOLLIPOP) {
+
+                                request.grant(
+                                        request.getResources()
+                                );
+                            }
+                        });
+                    }
+                }
+        );
+
+        // ==========================================
+        // WebViewClient
+        // ==========================================
+
+        webView.setWebViewClient(
+                new WebViewClient() {
+
+                    @Override
+                    public void onReceivedError(
+                            WebView view,
+                            int errorCode,
+                            String description,
+                            String failingUrl
+                    ) {
+
+                        Log.e(
+                                TAG,
+                                "WebView error: "
+                                        + description
+                                        + " | URL: "
+                                        + failingUrl
                         );
                     }
-                });
-            }
-        });
 
-        webView.setWebViewClient(new WebViewClient() {
+                    @Override
+                    public boolean shouldOverrideUrlLoading(
+                            WebView view,
+                            String url
+                    ) {
 
-            @Override
-            public void onReceivedError(
-                    WebView view,
-                    int errorCode,
-                    String description,
-                    String failingUrl
-            ) {
-                Log.e(
-                        TAG,
-                        "WebView error: "
-                                + description
-                                + " | URL: "
-                                + failingUrl
-                );
-            }
+                        view.loadUrl(url);
 
-            @Override
-            public boolean shouldOverrideUrlLoading(
-                    WebView view,
-                    String url
-            ) {
-                view.loadUrl(url);
-                return true;
-            }
-        });
+                        return true;
+                    }
+                }
+        );
 
         webView.setScrollBarStyle(
                 WebView.SCROLLBARS_OUTSIDE_OVERLAY
         );
+
+        // ==========================================
+        // Запуск GODY
+        // ==========================================
 
         webView.loadUrl(
                 "file:///android_asset/index.html"
@@ -176,15 +347,20 @@ public class MainActivity extends Activity {
     @Override
     public void onBackPressed() {
 
-        if (webView != null && webView.canGoBack()) {
+        if (webView != null &&
+                webView.canGoBack()) {
+
             webView.goBack();
+
         } else {
+
             super.onBackPressed();
         }
     }
 
     @Override
     protected void onPause() {
+
         super.onPause();
 
         if (webView != null) {
@@ -194,6 +370,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onResume() {
+
         super.onResume();
 
         if (webView != null) {
@@ -205,10 +382,12 @@ public class MainActivity extends Activity {
     protected void onDestroy() {
 
         if (webView != null) {
+
             webView.destroy();
+
             webView = null;
         }
 
         super.onDestroy();
     }
-}
+                                   }
