@@ -41,7 +41,7 @@ public class MainActivity extends Activity {
         // JavaScript
         settings.setJavaScriptEnabled(true);
         webSettings.setAllowFileAccessFromFileURLs(true);
-.       webSettings.setAllowUniversalAccessFromFileURLs(true);
+        webSettings.setAllowUniversalAccessFromFileURLs(true);
         
 
         // localStorage — ОБЯЗАТЕЛЬНО для сохранения
