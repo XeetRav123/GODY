@@ -60,6 +60,17 @@ function applyPatches(){
       if(!SpeechMemory.patterns.find(p=>p.key===s.raw))
         SpeechMemory.patterns.push({key:s.raw,raw:s.raw,phrase:s.phrase,emo:s.emo,ts:0,uses:0});
     }
+    // Этап A: не залипать на «я слушаю / я слышу»
+    const _origRecall = SpeechMemory.recall.bind(SpeechMemory);
+    SpeechMemory.recall = function(raw, emo, exact){
+      const r = _origRecall(raw, emo, exact);
+      if(!r) return null;
+      const low = String(r).toLowerCase();
+      if(/не нужно говорить много/.test(low)) return null;
+      if(/^я слышу/.test(low) || /^я слушаю/.test(low)) return null;
+      if(typeof _lastOut!=='undefined' && _lastOut && String(r).trim()===String(_lastOut).trim()) return null;
+      return r;
+    };
   }
 
   // 3.2 Patch _fallback — умный офлайн вместо определений
