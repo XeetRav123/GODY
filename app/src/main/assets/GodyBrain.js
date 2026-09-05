@@ -72,7 +72,7 @@ const GodyBrain = {
       };
     }
 
-    if (hit(/^(привет|здравствуй|хай|hello|hi|ку)\b/) || t === 'привет') {
+    if (hit(/^(привет|здравствуй|здравствуйте|приветствую|приветик|хай|hello|hi|ку)/i) || t.startsWith('привет')) {
       return {
         understanding: 'приветствие',
         reasoning: 'коротко и тепло',
@@ -233,8 +233,25 @@ const GodyBrain = {
     ].join('\n');
   },
 
+  async _postToAI(sys, user, maxTokens) {
+    // Прямой POST к Pollinations — для JSON ответов где GET не работает
+    const body = {
+      messages: [{ role: 'user', content: user }],
+      model: 'openai',
+      seed: 42,
+      max_tokens: maxTokens,
+      system: sys
+    };
+    const r = await fetch('https://text.pollinations.ai/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return await r.text();
+  },
+
   async apiThink(userText, deep) {
-    if (typeof API === 'undefined' || !API.anyAvailable || !API.anyAvailable()) return null;
     const st = this._stateSnap();
     const sys = this._deepSystem(st);
     const depthNote = deep
@@ -248,10 +265,19 @@ const GodyBrain = {
     ].filter(Boolean).join('\n\n');
 
     try {
-      const r = await API.call([
-        { role: 'system', content: sys },
-        { role: 'user', content: user }
-      ], deep ? 450 : 280);
+      // Пробуем POST напрямую (нужен для JSON ответов)
+      let r = null;
+      try { r = await this._postToAI(sys, user, deep ? 450 : 280); }
+      catch(e) {
+        // CORS fallback — через GET с коротким промптом
+        if (typeof API !== 'undefined' && API.anyAvailable && API.anyAvailable()) {
+          r = await API.call([
+            { role: 'system', content: sys },
+            { role: 'user', content: user }
+          ], deep ? 450 : 280);
+        }
+      }
+      if (!r) return null;
 
       let j = this._extractJson(r);
 
